@@ -14,6 +14,7 @@ enum TaskInsertHelper {
     static func insert(
         title: String,
         categorySelection: CategorySelection,
+        isBonus: Bool = false,
         scheduledDate: Date,
         recurrence: RecurrenceFormInput,
         into context: ModelContext
@@ -28,6 +29,7 @@ enum TaskInsertHelper {
                 title: title,
                 category: placeholderCategory,
                 dateKey: dateKey,
+                isBonus: isBonus,
                 scheduledDate: anchor,
                 recurrenceRule: .none,
                 recurrenceSeriesId: nil
@@ -41,6 +43,7 @@ enum TaskInsertHelper {
         let result = RecurrenceGenerator.generate(
             title: title,
             categorySelection: categorySelection,
+            isBonus: isBonus,
             anchorDate: anchor,
             rule: recurrence.rule,
             customWeekdays: recurrence.customWeekdays,
@@ -58,6 +61,7 @@ enum TaskInsertHelper {
                 title: title,
                 category: placeholderCategory,
                 dateKey: dateKey,
+                isBonus: isBonus,
                 scheduledDate: anchor,
                 recurrenceRule: .none,
                 recurrenceSeriesId: nil

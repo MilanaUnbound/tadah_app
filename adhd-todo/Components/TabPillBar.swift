@@ -10,7 +10,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .today: "Today"
-        case .history: "History"
+        case .history: "Log"
         case .recap: "Recap"
         }
     }

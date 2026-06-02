@@ -80,6 +80,8 @@ struct AddTaskInlineForm: View {
                 .textInputAutocapitalization(.sentences)
                 .submitLabel(.done)
                 .onSubmit { submitIfPossible() }
+                .contentShape(Rectangle())
+                .onTapGesture { focus = .title }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
                 .background(Color(.systemGray6))
@@ -226,10 +228,15 @@ struct AddTaskInlineForm: View {
                 isCreatingProject = false
                 newProjectName = ""
                 restoreLastUsedProjectSelection()
-                DispatchQueue.main.async { focus = .title }
             } else {
                 focus = nil
             }
+        }
+        .task(id: isExpanded) {
+            guard isExpanded else { return }
+            // Let the expansion transition/layout settle before requesting focus.
+            try? await _Concurrency.Task.sleep(nanoseconds: 80_000_000)
+            focus = .title
         }
         .onChange(of: projects.count) { _, _ in
             restoreLastUsedProjectSelection()

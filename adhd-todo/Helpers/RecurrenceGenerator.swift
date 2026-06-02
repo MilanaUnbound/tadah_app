@@ -34,6 +34,7 @@ enum RecurrenceGenerator {
     static func generate(
         title: String,
         categorySelection: CategorySelection,
+        isBonus: Bool = false,
         anchorDate: Date,
         rule: RecurrenceRule,
         customWeekdays: Set<Int>,
@@ -81,6 +82,7 @@ enum RecurrenceGenerator {
                 title: title,
                 category: placeholderCategory,
                 dateKey: key,
+                isBonus: isBonus,
                 scheduledDate: day,
                 recurrenceRule: rule,
                 recurrenceSeriesId: seriesId,

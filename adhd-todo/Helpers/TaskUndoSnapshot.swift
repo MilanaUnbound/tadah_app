@@ -7,6 +7,7 @@ struct TaskUndoSnapshot {
     let categoryRaw: String
     let dateKey: String
     let isCompleted: Bool
+    let isBonus: Bool
     let completedAt: Date?
     let scheduledDate: Date?
     let recurrenceRuleRaw: String?
@@ -21,6 +22,7 @@ struct TaskUndoSnapshot {
         categoryRaw = task.categoryRaw
         dateKey = task.dateKey
         isCompleted = task.isCompleted
+        isBonus = task.isBonus
         completedAt = task.completedAt
         scheduledDate = task.scheduledDate
         recurrenceRuleRaw = task.recurrenceRuleRaw
@@ -40,6 +42,7 @@ struct TaskUndoSnapshot {
             category: placeholderCategory,
             dateKey: dateKey,
             isCompleted: isCompleted,
+            isBonus: isBonus,
             completedAt: completedAt,
             scheduledDate: scheduledDate,
             recurrenceRule: recurrenceRule,

@@ -80,15 +80,19 @@ struct SwipeableTaskRow<Content: View>: View {
                 isDragging = false
 
                 if offsetX < -threshold {
-                    offsetX = 0
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        offsetX = 0
+                    }
                     onDelete()
                 } else if offsetX > threshold {
                     withAnimation(.easeOut(duration: 0.22)) {
                         onToggleComplete()
+                        offsetX = 0
                     }
-                    offsetX = 0
                 } else {
-                    offsetX = 0
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        offsetX = 0
+                    }
                 }
             }
     }

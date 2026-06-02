@@ -26,9 +26,9 @@ struct AllDoneCard: View {
                     )
                     .frame(width: 48, height: 48)
 
-                Image(systemName: "sparkles")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
+                Text("🎉")
+                    .font(.system(size: 24))
+                    .frame(width: 48, height: 48, alignment: .center)
             }
             .padding(.bottom, 16)
 

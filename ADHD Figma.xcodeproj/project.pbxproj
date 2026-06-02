@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		233877532FCEF75A00DDE5E7 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 233877522FCEF75A00DDE5E7 /* LaunchScreen.storyboard */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		2323984C2FC74CF500C9EB2D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		2323983B2FC74CF400C9EB2D /* Tadah.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tadah.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2323984B2FC74CF500C9EB2D /* ADHD FigmaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ADHD FigmaTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		232398552FC74CF500C9EB2D /* ADHD FigmaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ADHD FigmaUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		233877522FCEF75A00DDE5E7 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +80,7 @@
 		232398322FC74CF400C9EB2D = {
 			isa = PBXGroup;
 			children = (
+				233877522FCEF75A00DDE5E7 /* LaunchScreen.storyboard */,
 				2323983D2FC74CF400C9EB2D /* adhd-todo */,
 				2323984E2FC74CF500C9EB2D /* ADHD FigmaTests */,
 				232398582FC74CF500C9EB2D /* ADHD FigmaUITests */,
@@ -212,6 +218,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				233877532FCEF75A00DDE5E7 /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -395,6 +402,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"adhd-todo/Preview Content\"";
@@ -404,7 +412,8 @@
 				INFOPLIST_KEY_UIAppFonts = "Resources/Fonts/SpaceGrotesk-Light.ttf Resources/Fonts/SpaceGrotesk-Regular.ttf Resources/Fonts/SpaceGrotesk-Medium.ttf Resources/Fonts/SpaceGrotesk-SemiBold.ttf Resources/Fonts/SpaceGrotesk-Bold.ttf";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UILaunchScreen_Generation = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -425,6 +434,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"adhd-todo/Preview Content\"";
@@ -434,7 +444,8 @@
 				INFOPLIST_KEY_UIAppFonts = "Resources/Fonts/SpaceGrotesk-Light.ttf Resources/Fonts/SpaceGrotesk-Regular.ttf Resources/Fonts/SpaceGrotesk-Medium.ttf Resources/Fonts/SpaceGrotesk-SemiBold.ttf Resources/Fonts/SpaceGrotesk-Bold.ttf";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UILaunchScreen_Generation = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (

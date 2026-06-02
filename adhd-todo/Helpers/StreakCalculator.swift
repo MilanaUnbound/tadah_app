@@ -19,7 +19,12 @@ enum StreakCalculator {
                 continue
             }
 
-            if tasks.allSatisfy(\.isCompleted) {
+            let normalTasks = tasks.filter { $0.isBonus == false }
+            if normalTasks.isEmpty {
+                continue
+            }
+
+            if normalTasks.allSatisfy(\.isCompleted) {
                 streak += 1
                 continue
             }

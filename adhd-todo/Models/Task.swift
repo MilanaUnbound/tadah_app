@@ -9,6 +9,7 @@ final class Task {
     /// The calendar day this task instance belongs to (YYYY-MM-DD, local).
     var dateKey: String
     var isCompleted: Bool
+    var isBonus: Bool
 
     /// When the task was marked complete (History browse). Cleared when marked incomplete.
     var completedAt: Date?
@@ -58,6 +59,7 @@ final class Task {
         category: Category,
         dateKey: String,
         isCompleted: Bool = false,
+        isBonus: Bool = false,
         completedAt: Date? = nil,
         scheduledDate: Date? = nil,
         recurrenceRule: RecurrenceRule = .none,
@@ -71,6 +73,7 @@ final class Task {
         self.categoryRaw = category.rawValue
         self.dateKey = dateKey
         self.isCompleted = isCompleted
+        self.isBonus = isBonus
         self.completedAt = completedAt
         self.scheduledDate = scheduledDate
             ?? DateHelpers.startOfDay(forKey: dateKey)

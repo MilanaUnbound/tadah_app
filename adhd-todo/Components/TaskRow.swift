@@ -56,7 +56,6 @@ struct TaskRow: View {
     }
 
     private var titleFontWeight: SpaceGroteskWeight {
-        if isPendingDelete || task.isCompleted { return .regular }
         return .medium
     }
 

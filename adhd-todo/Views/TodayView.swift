@@ -16,7 +16,6 @@ struct TodayView: View {
 
     @State private var isAddExpanded: Bool = false
     @State private var isConfettiVisible: Bool = false
-    @State private var confettiFiredForDateKey: String? = nil
     @State private var showRecurrenceFailureAlert: Bool = false
 
     init(streakCount: Int, selectedDateKey: String = DateHelpers.todayKey()) {
@@ -142,15 +141,7 @@ struct TodayView: View {
         .onChange(of: isAllDone) { _, allDone in
             guard allDone else { return }
             guard tasks.isEmpty == false else { return }
-            guard confettiFiredForDateKey != selectedDateKey else { return }
-
-            confettiFiredForDateKey = selectedDateKey
             isConfettiVisible = true
-        }
-        .onChange(of: selectedDateKey) { _, newValue in
-            if confettiFiredForDateKey != newValue {
-                isConfettiVisible = false
-            }
         }
         .alert(
             "Repeat",
@@ -171,6 +162,7 @@ struct TodayView: View {
         let outcome = TaskInsertHelper.insert(
             title: title,
             categorySelection: categorySelection,
+            isBonus: isAllDone,
             scheduledDate: scheduledDate,
             recurrence: recurrence,
             into: modelContext

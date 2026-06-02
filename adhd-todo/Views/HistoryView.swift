@@ -74,17 +74,47 @@ struct HistoryView: View {
         return TaskCategoryDisplay.displayName(for: sample, projects: projects)
     }
 
+    private var upcomingTasks: [Task] {
+        let todayKey = DateHelpers.todayKey()
+        return allTasks
+            .filter { $0.isCompleted == false }
+            .filter { $0.dateKey > todayKey }
+            .sorted { lhs, rhs in
+                lhs.resolvedScheduledDate < rhs.resolvedScheduledDate
+            }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .center) {
-                    Text("History")
+                    Text("Log")
                         .font(.spaceGrotesk(.bold, size: ScreenLayout.headingFontSize(for: screenContentWidth)))
 
                     Spacer()
 
                     StreakBadge(streakCount: streakCount)
                         .streakWidthReporter()
+                }
+
+                if upcomingTasks.isEmpty == false {
+                    UpcomingSection(
+                        tasks: upcomingTasks,
+                        projects: projects,
+                        onReschedule: { task, newDate in
+                            let cal = Calendar.current
+                            let start = cal.startOfDay(for: newDate)
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                task.dateKey = DateHelpers.dateKey(for: start)
+                                task.scheduledDate = start
+                            }
+                        },
+                        onDelete: { task in
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                taskDeleteUndo.delete(task, in: modelContext)
+                            }
+                        }
+                    )
                 }
 
                 if drillDownCategoryRaw != nil {

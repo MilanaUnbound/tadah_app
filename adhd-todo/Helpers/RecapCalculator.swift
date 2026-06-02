@@ -34,6 +34,7 @@ enum RecapCalculator {
         let filtered = allTasks.filter { task in
             if excludeToday, task.dateKey == todayKey { return false }
             guard DateHelpers.isFutureKey(task.dateKey, now: now) == false else { return false }
+            guard shouldIncludeInRecap(task) else { return false }
             return isTask(task, in: period)
         }
 
@@ -83,9 +84,17 @@ enum RecapCalculator {
 
     /// Excludes today when there is at least one task and any is incomplete.
     private static func shouldExcludeTodayFromRecap(allTasks: [Task], todayKey: String) -> Bool {
-        let todayTasks = allTasks.filter { $0.dateKey == todayKey }
+        let todayTasks = allTasks
+            .filter { $0.dateKey == todayKey }
+            .filter { $0.isBonus == false }
         guard !todayTasks.isEmpty else { return false }
         return !todayTasks.allSatisfy(\.isCompleted)
+    }
+
+    /// Bonus tasks are only counted in recap when completed.
+    private static func shouldIncludeInRecap(_ task: Task) -> Bool {
+        if task.isBonus { return task.isCompleted }
+        return true
     }
 
     private static func isTask(_ task: Task, in period: Period) -> Bool {
