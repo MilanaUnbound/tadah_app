@@ -11,6 +11,9 @@ final class Task {
     var isCompleted: Bool
     var isBonus: Bool
 
+    /// Display order within a day + bonus bucket (Today reorder).
+    var sortOrder: Int = 0
+
     /// When the task was marked complete (History browse). Cleared when marked incomplete.
     var completedAt: Date?
 

@@ -1,86 +1,281 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct SettingsSheetView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
+    @Environment(\.modelContext) private var modelContext
+    @Environment(AppPreferences.self) private var preferences
+    @Environment(TaskDeleteUndoController.self) private var taskDeleteUndo
 
     @Query(sort: [SortDescriptor(\Task.dateKey), SortDescriptor(\Task.title)]) private var tasks: [Task]
     @Query(sort: \Project.name) private var projects: [Project]
 
     @State private var exportURL: URL?
     @State private var exportErrorMessage: String?
+    @State private var importErrorMessage: String?
+    @State private var deleteErrorMessage: String?
+    @State private var notificationDeniedMessage: String?
+    @State private var isImporting = false
+    @State private var pendingImportURL: URL?
+    @State private var showImportConfirm = false
+    @State private var showDeleteConfirm = false
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button {
-                        export()
-                    } label: {
-                        Label("Export JSON", systemImage: "square.and.arrow.up")
+        ScrollView {
+            VStack(spacing: 0) {
+                header
+
+                VStack(spacing: 0) {
+                    sectionHeader("Appearance", topPadding: 4)
+
+                    AppearanceModePicker(selection: Binding(
+                        get: { preferences.appearanceMode },
+                        set: { preferences.appearanceMode = $0 }
+                    ))
+
+                    sectionHeader("Data", topPadding: 14)
+
+                    SettingRow(
+                        icon: Image(systemName: "arrow.down.circle")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(AppTheme.exportBlue),
+                        label: "Export data",
+                        hint: "Download all tasks and projects"
+                    ) {
+                        SettingsActionButton(style: .save) {
+                            export()
+                        }
                     }
-                } footer: {
-                    Text("Exports your todos, projects, and categories as a JSON file you can save anywhere.")
+
+                    SettingRow(
+                        icon: Image(systemName: "arrow.up.circle")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(AppTheme.importGreen),
+                        label: "Import data",
+                        hint: "Restore from a backup file"
+                    ) {
+                        SettingsActionButton(style: .load) {
+                            isImporting = true
+                        }
+                    }
+
+                    SettingRow(
+                        icon: Image(systemName: "trash")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(AppTheme.deleteRed),
+                        label: "Delete all data",
+                        hint: "Permanently remove all tasks and projects"
+                    ) {
+                        SettingsActionButton(style: .delete) {
+                            showDeleteConfirm = true
+                        }
+                    }
+
+                    sectionHeader("Focus", topPadding: 14)
+
+                    SettingRow(
+                        icon: Image(systemName: "bell")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(AppTheme.reminderPink),
+                        label: "Daily reminder",
+                        hint: "Get nudged once a day"
+                    ) {
+                        SettingsToggle(isOn: Binding(
+                            get: { preferences.notificationsEnabled },
+                            set: { newValue in
+                                preferences.notificationsEnabled = newValue
+                                _Concurrency.Task {
+                                    await handleNotificationsChange(enabled: newValue)
+                                }
+                            }
+                        ))
+                    }
                 }
-            }
-            .navigationTitle("Settings")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .alert("Export failed", isPresented: Binding(get: {
-                exportErrorMessage != nil
-            }, set: { newValue in
-                if newValue == false { exportErrorMessage = nil }
-            })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(exportErrorMessage ?? "Unknown error.")
-            }
-            .sheet(item: Binding(get: {
-                exportURL.map(ExportedFile.init(url:))
-            }, set: { newValue in
-                exportURL = newValue?.url
-            })) { exported in
-                ActivityView(activityItems: [exported.url])
-                    .ignoresSafeArea()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 40)
             }
         }
+        .background(theme.sheet.ignoresSafeArea())
+        .alert("Export failed", isPresented: exportErrorPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportErrorMessage ?? "Unknown error.")
+        }
+        .alert("Invalid backup file.", isPresented: importErrorPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importErrorMessage ?? "Unknown error.")
+        }
+        .alert("Delete failed", isPresented: deleteErrorPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteErrorMessage ?? "Unknown error.")
+        }
+        .alert("Replace all data?", isPresented: $showImportConfirm) {
+            Button("Replace", role: .destructive) {
+                performImport()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingImportURL = nil
+            }
+        } message: {
+            Text("Replace all tasks and projects with this backup?")
+        }
+        .alert("Delete all data?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                performDeleteAll()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Permanently remove all tasks and projects? This cannot be undone.")
+        }
+        .alert("Notifications unavailable", isPresented: notificationDeniedPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(notificationDeniedMessage ?? "Turn on notifications in Settings to get daily reminders.")
+        }
+        .fileImporter(
+            isPresented: $isImporting,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                pendingImportURL = url
+                showImportConfirm = true
+            case .failure:
+                importErrorMessage = "Invalid backup file."
+            }
+        }
+        .sheet(item: exportFileBinding, onDismiss: { exportURL = nil }) { exported in
+            ActivityView(activityItems: [exported.url])
+                .ignoresSafeArea()
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Settings")
+                .font(.spaceGrotesk(.bold, size: 18))
+                .foregroundStyle(theme.text)
+
+            Spacer()
+
+            Button {
+                closeSettings()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.textSub)
+                    .frame(width: 30, height: 30)
+                    .background(theme.btnBg, in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 20)
+    }
+
+    private func sectionHeader(_ title: String, topPadding: CGFloat) -> some View {
+        HStack {
+            Text(title.uppercased())
+                .font(.spaceGrotesk(.medium, size: 11))
+                .tracking(0.8)
+                .foregroundStyle(theme.textMuted)
+            Spacer()
+        }
+        .padding(.leading, 4)
+        .padding(.top, topPadding)
+        .padding(.bottom, 10)
+    }
+
+    private var exportErrorPresented: Binding<Bool> {
+        Binding(
+            get: { exportErrorMessage != nil },
+            set: { if !$0 { exportErrorMessage = nil } }
+        )
+    }
+
+    private var importErrorPresented: Binding<Bool> {
+        Binding(
+            get: { importErrorMessage != nil },
+            set: { if !$0 { importErrorMessage = nil } }
+        )
+    }
+
+    private var deleteErrorPresented: Binding<Bool> {
+        Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )
+    }
+
+    private var notificationDeniedPresented: Binding<Bool> {
+        Binding(
+            get: { notificationDeniedMessage != nil },
+            set: { if !$0 { notificationDeniedMessage = nil } }
+        )
+    }
+
+    private var exportFileBinding: Binding<ExportedFile?> {
+        Binding(
+            get: { exportURL.map(ExportedFile.init(url:)) },
+            set: { exportURL = $0?.url }
+        )
     }
 
     private func export() {
         do {
-            let bundle = ExportBundle.make(tasks: tasks, projects: projects)
-
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-
-            let data = try encoder.encode(bundle)
-
-            let fileURL = try writeExportFile(data: data)
-            exportURL = fileURL
+            exportURL = try DataExportHelper.exportData(tasks: tasks, projects: projects)
         } catch {
             exportErrorMessage = String(describing: error)
         }
     }
 
-    private func writeExportFile(data: Data) throws -> URL {
-        let dir = FileManager.default.temporaryDirectory
-        let fileName = "tadah-export-\(timestamp()).json"
-        let url = dir.appendingPathComponent(fileName)
-        try data.write(to: url, options: [.atomic])
-        return url
+    private func performImport() {
+        guard let url = pendingImportURL else { return }
+        pendingImportURL = nil
+
+        do {
+            let bundle = try DataImportHelper.decode(from: url)
+            try DataImportHelper.replaceAll(bundle: bundle, in: modelContext)
+            closeSettings()
+        } catch {
+            importErrorMessage = error.localizedDescription
+        }
     }
 
-    private func timestamp() -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
-        return formatter.string(from: Date())
+    private func performDeleteAll() {
+        do {
+            try DataDeleteHelper.deleteAll(in: modelContext)
+            taskDeleteUndo.dismiss()
+            closeSettings()
+        } catch {
+            deleteErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func closeSettings() {
+        dismiss()
+    }
+
+    @MainActor
+    private func handleNotificationsChange(enabled: Bool) async {
+        if enabled {
+            let granted = await NotificationScheduler.requestAuthorization()
+            guard granted else {
+                preferences.notificationsEnabled = false
+                notificationDeniedMessage = "Turn on notifications in Settings to get daily reminders."
+                return
+            }
+            await NotificationScheduler.sync(with: preferences)
+        } else {
+            NotificationScheduler.cancelDailyReminder()
+        }
     }
 }
 
@@ -89,102 +284,6 @@ private struct ExportedFile: Identifiable {
     let url: URL
 
     init(url: URL) { self.url = url }
-}
-
-private struct ExportBundle: Codable {
-    let version: Int
-    let exportedAt: Date
-    let categories: [BuiltinCategoryExport]
-    let projects: [ProjectExport]
-    let todos: [TodoExport]
-
-    static func make(tasks: [Task], projects: [Project]) -> ExportBundle {
-        let categories = Category.allCases.map { BuiltinCategoryExport(id: $0.rawValue, displayName: $0.displayName) }
-
-        let projectExports = projects.map { p in
-            ProjectExport(
-                id: p.id,
-                name: p.name,
-                colorHex: p.colorHex,
-                createdAt: p.createdAt
-            )
-        }
-
-        let todoExports = tasks.map { t in
-            TodoExport(
-                id: t.id,
-                title: t.title,
-                dateKey: t.dateKey,
-                isCompleted: t.isCompleted,
-                isBonus: t.isBonus,
-                completedAt: t.completedAt,
-                scheduledDate: t.scheduledDate,
-                recurrenceRuleRaw: t.recurrenceRuleRaw,
-                recurrenceSeriesId: t.recurrenceSeriesId,
-                customWeekdaysMask: t.customWeekdaysMask,
-                categoryRaw: t.categoryRaw,
-                categoryRef: CategoryRef.from(categoryRaw: t.categoryRaw)
-            )
-        }
-
-        return ExportBundle(
-            version: 1,
-            exportedAt: Date(),
-            categories: categories,
-            projects: projectExports,
-            todos: todoExports
-        )
-    }
-}
-
-private struct BuiltinCategoryExport: Codable {
-    let id: String
-    let displayName: String
-}
-
-private struct ProjectExport: Codable {
-    let id: UUID
-    let name: String
-    let colorHex: String
-    let createdAt: Date
-}
-
-private struct TodoExport: Codable {
-    let id: UUID
-    let title: String
-    let dateKey: String
-    let isCompleted: Bool
-    let isBonus: Bool
-    let completedAt: Date?
-    let scheduledDate: Date?
-
-    let recurrenceRuleRaw: String?
-    let recurrenceSeriesId: UUID?
-    let customWeekdaysMask: Int?
-
-    let categoryRaw: String
-    let categoryRef: CategoryRef
-}
-
-private struct CategoryRef: Codable {
-    enum RefType: String, Codable {
-        case builtin
-        case project
-        case unknown
-    }
-
-    let type: RefType
-    let id: String
-
-    static func from(categoryRaw: String) -> CategoryRef {
-        if TaskCategoryKey.isBuiltin(categoryRaw) {
-            return CategoryRef(type: .builtin, id: categoryRaw)
-        }
-        if let projectId = TaskCategoryKey.projectId(from: categoryRaw) {
-            return CategoryRef(type: .project, id: projectId.uuidString)
-        }
-        return CategoryRef(type: .unknown, id: categoryRaw)
-    }
 }
 
 private struct ActivityView: UIViewControllerRepresentable {
@@ -197,3 +296,8 @@ private struct ActivityView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
+#Preview {
+    SettingsSheetView()
+        .environment(AppPreferences())
+        .environment(TaskDeleteUndoController())
+}

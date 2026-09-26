@@ -17,12 +17,34 @@ struct StreakCalculatorTests {
     private func makeTask(
         title: String = "T",
         dateKey: String,
-        isCompleted: Bool
+        isCompleted: Bool,
+        isBonus: Bool = false
     ) -> Task {
-        Task(title: title, category: .work, dateKey: dateKey, isCompleted: isCompleted)
+        Task(
+            title: title,
+            category: .work,
+            dateKey: dateKey,
+            isCompleted: isCompleted,
+            isBonus: isBonus
+        )
     }
 
-    @Test func allTasksComplete_incrementsStreak() {
+    private func makeRecurringTask(
+        dateKey: String,
+        isCompleted: Bool,
+        seriesId: UUID = UUID()
+    ) -> Task {
+        Task(
+            title: "Daily",
+            category: .work,
+            dateKey: dateKey,
+            isCompleted: isCompleted,
+            recurrenceRule: .daily,
+            recurrenceSeriesId: seriesId
+        )
+    }
+
+    @Test func allNormalTasksComplete_incrementsStreak() {
         let today = fixedTodayKey
         let tasksByKey: [String: [Task]] = [
             today: [
@@ -32,7 +54,6 @@ struct StreakCalculatorTests {
         ]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 7,
             now: fixedNow
@@ -53,7 +74,6 @@ struct StreakCalculatorTests {
         ]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 7,
             now: fixedNow
@@ -73,7 +93,6 @@ struct StreakCalculatorTests {
         ]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 7,
             now: fixedNow
@@ -91,7 +110,6 @@ struct StreakCalculatorTests {
         ]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 7,
             now: fixedNow
@@ -105,31 +123,25 @@ struct StreakCalculatorTests {
         let yesterday = key(daysAgo: 1)
         let twoDaysAgo = key(daysAgo: 2)
 
-        // Yesterday intentionally empty (no entry) → should be skipped.
         let tasksByKey: [String: [Task]] = [
             today: [makeTask(dateKey: today, isCompleted: true)],
             twoDaysAgo: [makeTask(dateKey: twoDaysAgo, isCompleted: true)],
         ]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 7,
             now: fixedNow
         )
 
         #expect(streak == 2)
-
-        // sanity: ensure the “empty” day we intended is actually between them
         #expect(yesterday != today && yesterday != twoDaysAgo)
     }
 
     @Test func streakOf0_noCompletedDays() {
-        let today = fixedTodayKey
         let tasksByKey: [String: [Task]] = [:]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 14,
             now: fixedNow
@@ -138,33 +150,114 @@ struct StreakCalculatorTests {
         #expect(streak == 0)
     }
 
-    @Test func sevenDayStreak_withOneEmptyDayInMiddle() {
-        let today = fixedTodayKey
-
-        // We want 7 completed “task-days” within an 8-day window,
-        // with one middle day having zero tasks (skipped).
-        //
-        // Completed task-days: offsets 0,1,2,(skip 3),4,5,6  => streak 7
+    @Test func sixDayStreak_withOneEmptyDayInMiddle() {
         let completedOffsets = [0, 1, 2, 4, 5, 6]
         var tasksByKey: [String: [Task]] = [:]
 
         for offset in completedOffsets {
-            let k = key(daysAgo: offset)
-            tasksByKey[k] = [makeTask(dateKey: k, isCompleted: true)]
+            let dayKey = key(daysAgo: offset)
+            tasksByKey[dayKey] = [makeTask(dateKey: dayKey, isCompleted: true)]
         }
 
-        // Ensure there is at least one empty day “in the middle”
         let skippedKey = key(daysAgo: 3)
         #expect(tasksByKey[skippedKey] == nil)
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 10,
             now: fixedNow
         )
 
-        #expect(streak == 6) // 0,1,2,(skip 3),4,5,6 = 6? (see note below)
+        #expect(streak == 6)
+    }
+
+    @Test func sevenConsecutiveDays_streakIs7() {
+        var tasksByKey: [String: [Task]] = [:]
+
+        for offset in 0..<7 {
+            let dayKey = key(daysAgo: offset)
+            tasksByKey[dayKey] = [
+                makeTask(title: "A", dateKey: dayKey, isCompleted: true),
+                makeTask(title: "B", dateKey: dayKey, isCompleted: true),
+                makeTask(title: "C", dateKey: dayKey, isCompleted: true),
+            ]
+        }
+
+        let streak = StreakCalculator.calculate(
+            tasksByDateKey: tasksByKey,
+            maxDaysBack: 14,
+            now: fixedNow
+        )
+
+        #expect(streak == 7)
+    }
+
+    @Test func weekdaySuccess_weekendIncompleteRecurring_streakIs1OnMonday() {
+        let seriesId = UUID()
+        var tasksByKey: [String: [Task]] = [:]
+
+        for offset in 0..<5 {
+            let dayKey = key(daysAgo: offset)
+            tasksByKey[dayKey] = [
+                makeTask(title: "A", dateKey: dayKey, isCompleted: true),
+                makeTask(title: "B", dateKey: dayKey, isCompleted: true),
+                makeTask(title: "C", dateKey: dayKey, isCompleted: true),
+            ]
+        }
+
+        for offset in 5..<7 {
+            let dayKey = key(daysAgo: offset)
+            tasksByKey[dayKey] = [
+                makeRecurringTask(dateKey: dayKey, isCompleted: false, seriesId: seriesId),
+            ]
+        }
+
+        let streak = StreakCalculator.calculate(
+            tasksByDateKey: tasksByKey,
+            maxDaysBack: 14,
+            now: fixedNow
+        )
+
+        #expect(streak == 1)
+    }
+
+    @Test func todayAllNormalComplete_withBonusIncomplete_countsToday() {
+        let today = fixedTodayKey
+        let tasksByKey: [String: [Task]] = [
+            today: [
+                makeTask(title: "A", dateKey: today, isCompleted: true),
+                makeTask(title: "B", dateKey: today, isCompleted: true),
+                makeTask(title: "C", dateKey: today, isCompleted: true),
+                makeTask(title: "Bonus", dateKey: today, isCompleted: false, isBonus: true),
+            ],
+        ]
+
+        let streak = StreakCalculator.calculate(
+            tasksByDateKey: tasksByKey,
+            maxDaysBack: 7,
+            now: fixedNow
+        )
+
+        #expect(streak == 1)
+    }
+
+    @Test func partialCompletion_doesNotCountDay() {
+        let today = fixedTodayKey
+        let tasksByKey: [String: [Task]] = [
+            today: [
+                makeTask(title: "A", dateKey: today, isCompleted: true),
+                makeTask(title: "B", dateKey: today, isCompleted: true),
+                makeTask(title: "C", dateKey: today, isCompleted: false),
+            ],
+        ]
+
+        let streak = StreakCalculator.calculate(
+            tasksByDateKey: tasksByKey,
+            maxDaysBack: 7,
+            now: fixedNow
+        )
+
+        #expect(streak == 0)
     }
 
     @Test func futureDateKey_doesNotIncreaseStreak() {
@@ -179,7 +272,6 @@ struct StreakCalculatorTests {
         ]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 7,
             now: fixedNow
@@ -201,7 +293,6 @@ struct StreakCalculatorTests {
         ]
 
         let streak = StreakCalculator.calculate(
-            todayKey: today,
             tasksByDateKey: tasksByKey,
             maxDaysBack: 7,
             now: fixedNow
@@ -209,5 +300,45 @@ struct StreakCalculatorTests {
 
         #expect(streak == 1)
     }
+
+    @Test func tasksByDateKey_excludesFutureDates() {
+        let today = fixedTodayKey
+        guard let tomorrow = DateHelpers.offsetKey(today, byDays: 1) else {
+            Issue.record("Missing tomorrow key")
+            return
+        }
+
+        let allTasks = [
+            makeTask(dateKey: today, isCompleted: true),
+            makeTask(dateKey: tomorrow, isCompleted: false),
+        ]
+
+        let byDate = StreakCalculator.tasksByDateKey(from: allTasks, now: fixedNow)
+
+        #expect(byDate[today]?.count == 1)
+        #expect(byDate[tomorrow] == nil)
+    }
 }
 
+struct DayCompletionHelperTests {
+    @Test func allNormalTasksComplete_ignoresBonusTasks() {
+        let today = DateHelpers.todayKey()
+        let tasks = [
+            Task(title: "A", category: .work, dateKey: today, isCompleted: true),
+            Task(title: "B", category: .work, dateKey: today, isCompleted: true),
+            Task(title: "Bonus", category: .work, dateKey: today, isCompleted: false, isBonus: true),
+        ]
+
+        #expect(DayCompletionHelper.allNormalTasksComplete(tasks: tasks))
+    }
+
+    @Test func allNormalTasksComplete_falseWhenAnyNormalIncomplete() {
+        let today = DateHelpers.todayKey()
+        let tasks = [
+            Task(title: "A", category: .work, dateKey: today, isCompleted: true),
+            Task(title: "B", category: .work, dateKey: today, isCompleted: false),
+        ]
+
+        #expect(DayCompletionHelper.allNormalTasksComplete(tasks: tasks) == false)
+    }
+}

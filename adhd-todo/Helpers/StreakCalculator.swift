@@ -2,7 +2,6 @@ import Foundation
 
 enum StreakCalculator {
     static func calculate(
-        todayKey: String,
         tasksByDateKey: [String: [Task]],
         maxDaysBack: Int = 90,
         now: Date = Date()
@@ -19,18 +18,17 @@ enum StreakCalculator {
                 continue
             }
 
-            let normalTasks = tasks.filter { $0.isBonus == false }
+            let normalTasks = DayCompletionHelper.normalTasks(from: tasks)
             if normalTasks.isEmpty {
                 continue
             }
 
-            if normalTasks.allSatisfy(\.isCompleted) {
+            if DayCompletionHelper.allNormalTasksComplete(tasks: tasks) {
                 streak += 1
                 continue
             }
 
             // In-progress today: do not break the streak until the calendar day ends.
-            // A failed day only counts after rollover (offset > 0).
             if offset == 0 {
                 continue
             }
@@ -39,5 +37,18 @@ enum StreakCalculator {
         }
 
         return streak
+    }
+
+    static func tasksByDateKey(from allTasks: [Task], now: Date = Date()) -> [String: [Task]] {
+        let todayKey = DateHelpers.todayKey(now: now)
+        var byDate: [String: [Task]] = [:]
+        byDate.reserveCapacity(64)
+
+        for task in allTasks {
+            guard task.dateKey <= todayKey else { continue }
+            byDate[task.dateKey, default: []].append(task)
+        }
+
+        return byDate
     }
 }

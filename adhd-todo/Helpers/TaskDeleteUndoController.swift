@@ -5,13 +5,19 @@ import SwiftUI
 @Observable
 final class TaskDeleteUndoController {
     var pendingUndo: TaskUndoSnapshot?
+    var pendingSeriesUndo: RecurrenceDeleteUndoSnapshot?
     var pendingDeleteTaskID: UUID?
 
     var displayTitle: String {
-        pendingUndo?.title ?? ""
+        pendingUndo?.title ?? pendingSeriesUndo?.displayTitle ?? ""
+    }
+
+    var showsUndoSnackBar: Bool {
+        pendingUndo != nil || pendingSeriesUndo != nil
     }
 
     private var pendingTask: Task?
+    private var pendingSeriesPivot: Task?
     private var commitDeleteTask: _Concurrency.Task<Void, Never>?
     private var dismissUndoTask: _Concurrency.Task<Void, Never>?
 
@@ -26,12 +32,7 @@ final class TaskDeleteUndoController {
 
     func delete(_ task: Task, in modelContext: ModelContext) {
         cancelTimers()
-
-        if let previous = pendingTask {
-            withAnimation(.easeOut(duration: 0.15)) {
-                modelContext.delete(previous)
-            }
-        }
+        commitAnyPending(in: modelContext)
 
         pendingTask = task
         pendingDeleteTaskID = task.id
@@ -39,18 +40,51 @@ final class TaskDeleteUndoController {
         scheduleTimers(in: modelContext)
     }
 
+    func deleteUpcoming(for task: Task, from allTasks: [Task], in modelContext: ModelContext) {
+        cancelTimers()
+        commitAnyPending(in: modelContext)
+
+        guard let snapshot = RecurrenceSeriesHelper.makeDeleteUpcomingSnapshot(
+            for: task,
+            from: allTasks
+        ) else { return }
+
+        pendingSeriesPivot = task
+        pendingDeleteTaskID = task.id
+        pendingSeriesUndo = snapshot
+        scheduleTimers(in: modelContext)
+    }
+
     func undo(in modelContext: ModelContext) {
-        guard let snapshot = pendingUndo else { return }
         cancelTimers()
 
         if pendingTask != nil {
             clearPendingVisualState()
-        } else {
+            pendingUndo = nil
+            return
+        }
+
+        if pendingSeriesPivot != nil {
+            clearPendingVisualState()
+            pendingSeriesUndo = nil
+            return
+        }
+
+        if let snapshot = pendingUndo {
             withAnimation(.easeOut(duration: 0.15)) {
                 snapshot.insert(into: modelContext)
             }
+            pendingUndo = nil
+            return
         }
-        pendingUndo = nil
+
+        if let seriesSnapshot = pendingSeriesUndo {
+            let allTasks = fetchAllTasks(in: modelContext)
+            withAnimation(.easeOut(duration: 0.15)) {
+                seriesSnapshot.restore(into: modelContext, existingTasks: allTasks)
+            }
+            pendingSeriesUndo = nil
+        }
     }
 
     func dismiss() {
@@ -62,7 +96,7 @@ final class TaskDeleteUndoController {
         commitDeleteTask = _Concurrency.Task { @MainActor in
             try? await _Concurrency.Task.sleep(nanoseconds: Self.commitDeleteDelayNanoseconds)
             guard !_Concurrency.Task.isCancelled else { return }
-            commitPendingDelete(in: modelContext)
+            commitAnyPending(in: modelContext)
         }
 
         dismissUndoTask = _Concurrency.Task { @MainActor in
@@ -72,29 +106,51 @@ final class TaskDeleteUndoController {
         }
     }
 
-    private func commitPendingDelete(in modelContext: ModelContext) {
+    private func commitAnyPending(in modelContext: ModelContext) {
+        if pendingTask != nil {
+            commitPendingSingleDelete(in: modelContext)
+        } else if pendingSeriesPivot != nil {
+            commitPendingSeriesDelete(in: modelContext)
+        }
+    }
+
+    private func commitPendingSingleDelete(in modelContext: ModelContext) {
         withAnimation(.easeOut(duration: 0.15)) {
             if let task = pendingTask {
                 modelContext.delete(task)
             }
-            clearPendingVisualState()
+            pendingTask = nil
+            pendingDeleteTaskID = nil
+        }
+    }
+
+    private func commitPendingSeriesDelete(in modelContext: ModelContext) {
+        guard let pivot = pendingSeriesPivot else { return }
+        let allTasks = fetchAllTasks(in: modelContext)
+        withAnimation(.easeOut(duration: 0.15)) {
+            RecurrenceSeriesHelper.deleteUpcoming(for: pivot, from: allTasks, in: modelContext)
+            pendingSeriesPivot = nil
+            pendingDeleteTaskID = nil
         }
     }
 
     private func dismissUndoSnackBar() {
         withAnimation(.easeOut(duration: 0.15)) {
             pendingUndo = nil
+            pendingSeriesUndo = nil
         }
     }
 
     private func clearPendingVisualState() {
         pendingTask = nil
+        pendingSeriesPivot = nil
         pendingDeleteTaskID = nil
     }
 
     private func clearAllState() {
         clearPendingVisualState()
         pendingUndo = nil
+        pendingSeriesUndo = nil
     }
 
     private func cancelTimers() {
@@ -102,5 +158,9 @@ final class TaskDeleteUndoController {
         commitDeleteTask = nil
         dismissUndoTask?.cancel()
         dismissUndoTask = nil
+    }
+
+    private func fetchAllTasks(in modelContext: ModelContext) -> [Task] {
+        (try? modelContext.fetch(FetchDescriptor<Task>())) ?? []
     }
 }

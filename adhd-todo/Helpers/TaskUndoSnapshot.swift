@@ -1,6 +1,33 @@
 import Foundation
 import SwiftData
 
+struct EarlierRecurrencePatch {
+    let taskID: UUID
+    let recurrenceRuleRaw: String?
+    let recurrenceSeriesId: UUID?
+    let customWeekdaysMask: Int?
+}
+
+struct RecurrenceDeleteUndoSnapshot {
+    let displayTitle: String
+    let representativeTaskID: UUID
+    let deletedTasks: [TaskUndoSnapshot]
+    let earlierRecurrencePatches: [EarlierRecurrencePatch]
+
+    func restore(into modelContext: ModelContext, existingTasks: [Task]) {
+        for snapshot in deletedTasks {
+            snapshot.insert(into: modelContext)
+        }
+
+        for patch in earlierRecurrencePatches {
+            guard let task = existingTasks.first(where: { $0.id == patch.taskID }) else { continue }
+            task.recurrenceRuleRaw = patch.recurrenceRuleRaw
+            task.recurrenceSeriesId = patch.recurrenceSeriesId
+            task.customWeekdaysMask = patch.customWeekdaysMask
+        }
+    }
+}
+
 struct TaskUndoSnapshot {
     let id: UUID
     let title: String

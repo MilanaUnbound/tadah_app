@@ -1,13 +1,25 @@
 import SwiftUI
 import SwiftData
 
+struct RecurringInstancePickerContext: Identifiable {
+    let id: UUID
+    let title: String
+    let instances: [Task]
+}
+
+private enum HistoryDrillDownScope: Equatable {
+    case allTime
+    case month(year: Int, month: Int)
+    case year(year: Int)
+}
+
 struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.screenContentWidth) private var screenContentWidth
+    @Environment(\.appTheme) private var theme
     @Environment(TaskDeleteUndoController.self) private var taskDeleteUndo
     @Environment(CategoryPickerController.self) private var categoryPicker
-
-    let streakCount: Int
+    @Environment(RescheduleController.self) private var rescheduleController
 
     @Query private var allTasks: [Task]
     @Query(sort: \Project.name) private var projects: [Project]
@@ -17,14 +29,10 @@ struct HistoryView: View {
     @State private var viewMonth: Int
     @State private var search = ""
     @State private var drillDownCategoryRaw: String?
-    @State private var streakWidth: CGFloat = StreakBadgeLayout.defaultWidth
+    @State private var drillDownScope: HistoryDrillDownScope = .allTime
+    @State private var recurringInstancePicker: RecurringInstancePickerContext?
 
-    private let muted = Color(red: 0xCC / 255, green: 0xCC / 255, blue: 0xCC / 255)
-    private let sectionLabel = Color(red: 0xAA / 255, green: 0xAA / 255, blue: 0xAA / 255)
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
-
-    init(streakCount: Int) {
-        self.streakCount = streakCount
+    init() {
         let calendar = Calendar.current
         let now = Date()
         _viewYear = State(initialValue: calendar.component(.year, from: now))
@@ -46,12 +54,14 @@ struct HistoryView: View {
         }
     }
 
-    private var groupedCompleted: [(label: String, tasks: [Task])] {
-        HistoryBrowseHelper.groupedCompletedTasks(
+    private var periodSummaries: [HistoryProjectSummary] {
+        HistoryBrowseHelper.periodProjectSummaries(
             from: allTasks,
+            projects: projects,
             period: period,
             viewYear: viewYear,
-            viewMonth: viewMonth
+            viewMonth: viewMonth,
+            search: search
         )
     }
 
@@ -65,11 +75,31 @@ struct HistoryView: View {
 
     private var drillDownTasks: [Task] {
         guard let key = drillDownCategoryRaw else { return [] }
-        return HistoryBrowseHelper.tasks(forCategoryRaw: key, from: allTasks)
+
+        switch drillDownScope {
+        case .allTime:
+            return HistoryBrowseHelper.tasks(forCategoryRaw: key, from: allTasks)
+        case .month(let year, let month):
+            let inPeriod = HistoryBrowseHelper.tasksInPeriod(
+                from: allTasks,
+                period: .month,
+                viewYear: year,
+                viewMonth: month
+            )
+            return HistoryBrowseHelper.tasks(forCategoryRaw: key, from: inPeriod)
+        case .year(let year):
+            let inPeriod = HistoryBrowseHelper.tasksInPeriod(
+                from: allTasks,
+                period: .year,
+                viewYear: year,
+                viewMonth: viewMonth
+            )
+            return HistoryBrowseHelper.tasks(forCategoryRaw: key, from: inPeriod)
+        }
     }
 
     private var drillDownTitle: String {
-        guard let key = drillDownCategoryRaw,
+        guard drillDownCategoryRaw != nil,
               let sample = drillDownTasks.first else { return "" }
         return TaskCategoryDisplay.displayName(for: sample, projects: projects)
     }
@@ -77,7 +107,6 @@ struct HistoryView: View {
     private var upcomingTasks: [Task] {
         let todayKey = DateHelpers.todayKey()
         return allTasks
-            .filter { $0.isCompleted == false }
             .filter { $0.dateKey > todayKey }
             .sorted { lhs, rhs in
                 lhs.resolvedScheduledDate < rhs.resolvedScheduledDate
@@ -85,48 +114,83 @@ struct HistoryView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .center) {
+        ZStack(alignment: .bottom) {
+            AppScrollView(fillsAvailableHeight: true) {
+                VStack(alignment: .leading, spacing: 20) {
                     Text("Log")
                         .font(.spaceGrotesk(.bold, size: ScreenLayout.headingFontSize(for: screenContentWidth)))
+                        .foregroundStyle(theme.text)
 
-                    Spacer()
-
-                    StreakBadge(streakCount: streakCount)
-                        .streakWidthReporter()
-                }
-
-                if upcomingTasks.isEmpty == false {
-                    UpcomingSection(
-                        tasks: upcomingTasks,
-                        projects: projects,
-                        onReschedule: { task, newDate in
-                            let cal = Calendar.current
-                            let start = cal.startOfDay(for: newDate)
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                task.dateKey = DateHelpers.dateKey(for: start)
-                                task.scheduledDate = start
+                    if upcomingTasks.isEmpty == false {
+                        UpcomingSection(
+                            tasks: upcomingTasks,
+                            projects: projects,
+                            onScheduleTap: { task in
+                                rescheduleController.present(task: task)
+                            },
+                            onDelete: { task in
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    if task.recurrenceSeriesId != nil {
+                                        taskDeleteUndo.deleteUpcoming(
+                                            for: task,
+                                            from: allTasks,
+                                            in: modelContext
+                                        )
+                                    } else {
+                                        taskDeleteUndo.delete(task, in: modelContext)
+                                    }
+                                }
+                            },
+                            onRecurringSwipeRight: { instances in
+                                guard let first = instances.first else { return }
+                                recurringInstancePicker = RecurringInstancePickerContext(
+                                    id: first.recurrenceSeriesId ?? first.id,
+                                    title: first.title,
+                                    instances: instances
+                                )
                             }
-                        },
-                        onDelete: { task in
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                taskDeleteUndo.delete(task, in: modelContext)
-                            }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                if drillDownCategoryRaw != nil {
-                    drillDownContent
-                } else {
-                    browseContent
+                    if drillDownCategoryRaw != nil {
+                        drillDownContent
+                    } else {
+                        browseContent
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tabContentVerticalPadding()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .tabContentVerticalPadding()
+
+            if let picker = recurringInstancePicker {
+                RecurringInstancePickerSheet(
+                    title: picker.title,
+                    instances: picker.instances,
+                    onComplete: { task in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            TaskCompletionHelper.setCompleted(task, completed: true)
+                        }
+                        dismissRecurringInstancePicker()
+                    },
+                    onDelete: { task in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            taskDeleteUndo.delete(task, in: modelContext)
+                        }
+                        dismissRecurringInstancePicker()
+                    },
+                    onCancel: {
+                        dismissRecurringInstancePicker()
+                    }
+                )
+                .transition(.opacity)
+            }
         }
-        .onStreakWidth { streakWidth = $0 }
+    }
+
+    private func dismissRecurringInstancePicker() {
+        BottomSheetDragDismissState.dismissWithoutAnimation {
+            recurringInstancePicker = nil
+        }
     }
 
     @ViewBuilder
@@ -134,9 +198,13 @@ struct HistoryView: View {
         HistoryPeriodControl(
             period: $period,
             periodLabel: navigatorPeriodLabel,
-            navigatorWidth: streakWidth,
+            navigatorWidth: StreakBadgeLayout.navigatorMinWidth,
             showsNavigation: period != .project,
-            onPeriodChange: { search = "" },
+            onPeriodChange: {
+                search = ""
+                drillDownCategoryRaw = nil
+                drillDownScope = .allTime
+            },
             onPrevious: { stepPeriod(direction: -1) },
             onNext: { stepPeriod(direction: 1) }
         )
@@ -151,28 +219,21 @@ struct HistoryView: View {
 
     @ViewBuilder
     private var monthYearContent: some View {
-        if groupedCompleted.isEmpty {
-            Text("Nothing completed in this period.")
-                .font(.spaceGrotesk(.medium, size: 15))
-                .foregroundStyle(muted)
-        } else {
-            VStack(alignment: .leading, spacing: 20) {
-                ForEach(groupedCompleted, id: \.label) { group in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(group.label.uppercased())
-                            .font(.spaceGrotesk(.medium, size: 12))
-                            .foregroundStyle(sectionLabel)
-                            .tracking(0.8)
+        HistoryProjectSearchBar(text: $search)
 
-                        VStack(spacing: 8) {
-                            ForEach(group.tasks) { task in
-                                HistoryCompletedTaskRow(
-                                    task: task,
-                                    projects: projects
-                                ) {
-                                    categoryPicker.present(task: task)
-                                }
-                            }
+        if periodSummaries.isEmpty {
+            Text("No tasks in this period.")
+                .font(.spaceGrotesk(.medium, size: 15))
+                .foregroundStyle(theme.textFaint)
+        } else {
+            VStack(spacing: 12) {
+                ForEach(periodSummaries) { summary in
+                    HistoryProjectRow(summary: summary) {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            drillDownScope = period == .month
+                                ? .month(year: viewYear, month: viewMonth)
+                                : .year(year: viewYear)
+                            drillDownCategoryRaw = summary.categoryRaw
                         }
                     }
                 }
@@ -187,12 +248,13 @@ struct HistoryView: View {
         if projectSummaries.isEmpty {
             Text("No projects found.")
                 .font(.spaceGrotesk(.medium, size: 15))
-                .foregroundStyle(muted)
+                .foregroundStyle(theme.textFaint)
         } else {
             VStack(spacing: 12) {
                 ForEach(projectSummaries) { summary in
                     HistoryProjectRow(summary: summary) {
                         withAnimation(.easeOut(duration: 0.15)) {
+                            drillDownScope = .allTime
                             drillDownCategoryRaw = summary.categoryRaw
                         }
                     }
@@ -206,6 +268,7 @@ struct HistoryView: View {
         Button {
             withAnimation(.easeOut(duration: 0.15)) {
                 drillDownCategoryRaw = nil
+                drillDownScope = .allTime
             }
         } label: {
             HStack(spacing: 6) {
@@ -214,7 +277,7 @@ struct HistoryView: View {
                 Text(drillDownTitle)
                     .font(.spaceGrotesk(.semibold, size: 16))
             }
-            .foregroundStyle(violet)
+            .foregroundStyle(theme.textSub)
         }
         .buttonStyle(.plain)
 
@@ -224,8 +287,8 @@ struct HistoryView: View {
             } label: {
                 Text("Reassign all tasks")
                     .font(.spaceGrotesk(.medium, size: 13))
-                    .foregroundStyle(muted)
-                    .underline(true, color: muted)
+                    .foregroundStyle(theme.textFaint)
+                    .underline(true, color: theme.textFaint)
             }
             .buttonStyle(.plain)
         }
@@ -233,7 +296,7 @@ struct HistoryView: View {
         if drillDownTasks.isEmpty {
             Text("Nothing here.")
                 .font(.spaceGrotesk(.medium, size: 15))
-                .foregroundStyle(muted)
+                .foregroundStyle(theme.textFaint)
         } else {
             VStack(spacing: 8) {
                 ForEach(drillDownTasks) { task in
@@ -260,6 +323,9 @@ struct HistoryView: View {
                                 task: task,
                                 onToggleComplete: {
                                     TaskCompletionHelper.toggle(task)
+                                },
+                                onRowTap: {
+                                    rescheduleController.present(task: task)
                                 },
                                 onDeleteUpcoming: {
                                     deleteUpcoming(for: task)
@@ -310,5 +376,5 @@ struct HistoryView: View {
 }
 
 #Preview {
-    HistoryView(streakCount: 7)
+    HistoryView()
 }

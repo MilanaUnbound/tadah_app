@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HistoryPeriodControl: View {
     @Environment(\.screenContentWidth) private var screenContentWidth
+    @Environment(\.appTheme) private var theme
 
     @Binding var period: HistoryPeriod
     let periodLabel: String
@@ -10,9 +11,6 @@ struct HistoryPeriodControl: View {
     var onPeriodChange: () -> Void = {}
     let onPrevious: () -> Void
     let onNext: () -> Void
-
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
-    private let inactiveText = Color(red: 0x88 / 255, green: 0x88 / 255, blue: 0x88 / 255)
 
     private var pillHorizontalPadding: CGFloat {
         ScreenLayout.periodPillHorizontalPadding(for: screenContentWidth)
@@ -85,13 +83,13 @@ struct HistoryPeriodControl: View {
         } label: {
             Text(item.label)
                 .font(.spaceGrotesk(.semibold, size: pillFontSize))
-                .foregroundStyle(isActive ? Color.white : inactiveText)
+                .foregroundStyle(isActive ? Color.white : theme.textSub)
                 .padding(.horizontal, pillHorizontalPadding)
                 .frame(height: StreakBadgeLayout.rowControlHeight)
-                .background(isActive ? violet : Color.white)
+                .background(isActive ? AppTheme.violet : theme.card)
                 .clipShape(Capsule())
                 .shadow(
-                    color: isActive ? .clear : Color.black.opacity(0.08),
+                    color: isActive ? .clear : theme.cardShadowColor,
                     radius: 3,
                     x: 0,
                     y: 1
@@ -116,6 +114,7 @@ struct HistoryPeriodControl: View {
             )
             .frame(width: 390)
             .environment(\.screenContentWidth, 390)
+            .withAppTheme()
             .padding()
         }
     }
@@ -138,6 +137,7 @@ struct HistoryPeriodControl: View {
             )
             .frame(width: 360)
             .environment(\.screenContentWidth, 360)
+            .withAppTheme()
             .padding()
         }
     }

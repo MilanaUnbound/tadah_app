@@ -4,10 +4,10 @@ import SwiftData
 struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.screenContentWidth) private var screenContentWidth
+    @Environment(\.appTheme) private var theme
     @Environment(TaskDeleteUndoController.self) private var taskDeleteUndo
     @Environment(CategoryPickerController.self) private var categoryPicker
-
-    let streakCount: Int
+    @Environment(RescheduleController.self) private var rescheduleController
 
     @State private var selectedDateKey: String
     @Query private var tasks: [Task]
@@ -18,38 +18,44 @@ struct TodayView: View {
     @State private var isConfettiVisible: Bool = false
     @State private var showRecurrenceFailureAlert: Bool = false
 
-    init(streakCount: Int, selectedDateKey: String = DateHelpers.todayKey()) {
-        self.streakCount = streakCount
+    init(selectedDateKey: String = DateHelpers.todayKey()) {
         _selectedDateKey = State(initialValue: selectedDateKey)
 
         _tasks = Query(
             filter: #Predicate<Task> { task in
                 task.dateKey == selectedDateKey
             },
-            sort: [SortDescriptor(\Task.title)]
+            sort: [
+                SortDescriptor(\Task.sortOrder),
+                SortDescriptor(\Task.title),
+            ]
         )
     }
 
     private var doneCount: Int { tasks.filter(\.isCompleted).count }
-    private var isAllDone: Bool { tasks.isEmpty == false && doneCount == tasks.count }
+    private var normalTasks: [Task] { DayCompletionHelper.normalTasks(from: tasks) }
+    private var bonusTasks: [Task] { tasks.filter(\.isBonus) }
+    private var normalCompletedCount: Int { normalTasks.filter(\.isCompleted).count }
+    private var allNormalTasksComplete: Bool {
+        DayCompletionHelper.allNormalTasksComplete(tasks: tasks)
+    }
 
     var body: some View {
         ZStack {
-            ScrollView {
+            AppScrollView(fillsAvailableHeight: true) {
                 VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Today")
                             .font(.spaceGrotesk(.bold, size: ScreenLayout.headingFontSize(for: screenContentWidth)))
+                            .foregroundStyle(theme.text)
 
                         Text(DateHelpers.todaySubtitle())
                             .font(.spaceGrotesk(.medium, size: 12))
-                            .foregroundStyle(Color.secondary)
+                            .foregroundStyle(theme.textSub)
                     }
 
-                    Spacer()
-
-                    StreakBadge(streakCount: streakCount)
+                    Spacer(minLength: 0)
                 }
 
                 if tasks.isEmpty == false {
@@ -57,30 +63,25 @@ struct TodayView: View {
                 }
 
                 VStack(spacing: 12) {
-                    ForEach(tasks) { task in
-                        SwipeableTaskRow(
-                            taskID: task.id,
-                            categoryColor: TaskCategoryDisplay.displayColor(for: task, projects: projects),
-                            isCompleted: task.isCompleted,
-                            onToggleComplete: {
-                                TaskCompletionHelper.toggle(task)
-                            },
-                            onDelete: {
-                                deleteTask(task)
+                    if normalTasks.isEmpty == false {
+                        ReorderableTaskList(
+                            tasks: normalTasks,
+                            onMove: { taskID, toIndex in
+                                moveTask(taskID: taskID, toIndex: toIndex, in: normalTasks)
                             }
-                        ) {
-                            TaskRow(
-                                task: task,
-                                onToggleComplete: {
-                                    TaskCompletionHelper.toggle(task)
-                                },
-                                onDeleteUpcoming: {
-                                    deleteUpcoming(for: task)
-                                },
-                                onCategoryTap: {
-                                    categoryPicker.present(task: task)
-                                }
-                            )
+                        ) { task, dragGesture in
+                            todayTaskRow(task: task, reorderDragGesture: dragGesture)
+                        }
+                    }
+
+                    if bonusTasks.isEmpty == false {
+                        ReorderableTaskList(
+                            tasks: bonusTasks,
+                            onMove: { taskID, toIndex in
+                                moveTask(taskID: taskID, toIndex: toIndex, in: bonusTasks)
+                            }
+                        ) { task, dragGesture in
+                            todayTaskRow(task: task, reorderDragGesture: dragGesture)
                         }
                     }
                 }
@@ -103,30 +104,24 @@ struct TodayView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "plus")
                                 .font(.system(size: 14, weight: .semibold))
-                            Text(isAllDone ? "Bonus task" : "Add task")
+                            Text(allNormalTasksComplete ? "Bonus task" : "Add task")
                                 .font(.spaceGrotesk(.semibold, size: 14))
                             Spacer()
                         }
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(theme.textSub)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 14)
                         .frame(maxWidth: .infinity)
-                        .background(Color(.systemGray6))
+                        .background(theme.btnBg)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
 
-                if isAllDone {
-                    AllDoneCard(completedCount: tasks.count)
+                if allNormalTasksComplete {
+                    AllDoneCard(completedCount: normalCompletedCount)
                         .transition(.opacity.combined(with: .offset(y: 12)))
-                        .animation(.easeOut(duration: 0.2).delay(0.12), value: isAllDone)
-
-                    if [3, 7, 14, 30].contains(streakCount) {
-                        MilestoneCard(streakCount: streakCount)
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                            .animation(.spring(response: 0.35, dampingFraction: 0.68).delay(0.3), value: streakCount)
-                    }
+                        .animation(.easeOut(duration: 0.2).delay(0.12), value: allNormalTasksComplete)
                 }
                 }
                 .tabContentVerticalPadding()
@@ -138,8 +133,14 @@ struct TodayView: View {
                 })
             }
         }
-        .onChange(of: isAllDone) { _, allDone in
-            guard allDone else { return }
+        .onAppear {
+            TaskReorderHelper.normalizeSortOrders(tasks)
+        }
+        .onChange(of: tasks.count) { _, _ in
+            TaskReorderHelper.normalizeSortOrders(tasks)
+        }
+        .onChange(of: allNormalTasksComplete) { _, metGoal in
+            guard metGoal else { return }
             guard tasks.isEmpty == false else { return }
             isConfettiVisible = true
         }
@@ -153,6 +154,55 @@ struct TodayView: View {
         }
     }
 
+    private func todayTaskRow(
+        task: Task,
+        reorderDragGesture: AnyGesture<DragGesture.Value>?
+    ) -> some View {
+        SwipeableTaskRow(
+            taskID: task.id,
+            categoryColor: TaskCategoryDisplay.displayColor(for: task, projects: projects),
+            isCompleted: task.isCompleted,
+            onToggleComplete: {
+                TaskCompletionHelper.toggle(task)
+            },
+            onDelete: {
+                deleteTask(task)
+            }
+        ) {
+            TaskRow(
+                task: task,
+                onToggleComplete: {
+                    TaskCompletionHelper.toggle(task)
+                },
+                checkboxIsInteractive: false,
+                showsScheduleSubtitle: true,
+                onRowTap: {
+                    handleTaskRowTap(task)
+                },
+                onDeleteUpcoming: {
+                    deleteUpcoming(for: task)
+                },
+                onCategoryTap: {
+                    categoryPicker.present(task: task)
+                },
+                leadingAccessory: .dragHandle,
+                reorderDragGesture: reorderDragGesture
+            )
+        }
+    }
+
+    private func moveTask(taskID: UUID, toIndex: Int, in sectionTasks: [Task]) {
+        TaskReorderHelper.move(taskID: taskID, toIndex: toIndex, in: sectionTasks)
+    }
+
+    private func handleTaskRowTap(_ task: Task) {
+        if task.isCompleted {
+            TaskCompletionHelper.toggle(task)
+        } else {
+            rescheduleController.present(task: task)
+        }
+    }
+
     private func addTask(
         title: String,
         categorySelection: CategorySelection,
@@ -162,7 +212,7 @@ struct TodayView: View {
         let outcome = TaskInsertHelper.insert(
             title: title,
             categorySelection: categorySelection,
-            isBonus: isAllDone,
+            isBonus: allNormalTasksComplete,
             scheduledDate: scheduledDate,
             recurrence: recurrence,
             into: modelContext
@@ -191,6 +241,6 @@ struct TodayView: View {
 }
 
 #Preview {
-    TodayView(streakCount: 0)
+    TodayView()
 }
 

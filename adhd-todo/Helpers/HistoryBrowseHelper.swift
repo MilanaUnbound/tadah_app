@@ -9,7 +9,10 @@ enum HistoryPeriod: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var label: String {
-        rawValue.capitalized
+        switch self {
+        case .project: "Overall"
+        default: rawValue.capitalized
+        }
     }
 }
 
@@ -79,7 +82,16 @@ enum HistoryBrowseHelper {
         )
 
         let grouped = Dictionary(grouping: filtered) { task in
-            groupLabel(for: task, period: period, calendar: calendar)
+            guard let date = resolvedCompletedAt(for: task, calendar: calendar) else { return "" }
+            let formatter = DateFormatter()
+            formatter.locale = .current
+            switch period {
+            case .year:
+                formatter.setLocalizedDateFormatFromTemplate("MMMM")
+            case .month, .project:
+                formatter.setLocalizedDateFormatFromTemplate("EEE, MMM d")
+            }
+            return formatter.string(from: date)
         }
 
         return grouped
@@ -111,6 +123,35 @@ enum HistoryBrowseHelper {
                 if lhs.dateKey != rhs.dateKey { return lhs.dateKey > rhs.dateKey }
                 return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             }
+    }
+
+    static func tasksInPeriod(
+        from tasks: [Task],
+        period: HistoryPeriod,
+        viewYear: Int,
+        viewMonth: Int
+    ) -> [Task] {
+        guard period == .month || period == .year else { return [] }
+        return tasks.filter { task in
+            taskIsInPeriod(task, period: period, viewYear: viewYear, viewMonth: viewMonth)
+        }
+    }
+
+    static func periodProjectSummaries(
+        from tasks: [Task],
+        projects: [Project],
+        period: HistoryPeriod,
+        viewYear: Int,
+        viewMonth: Int,
+        search: String
+    ) -> [HistoryProjectSummary] {
+        let filtered = tasksInPeriod(
+            from: tasks,
+            period: period,
+            viewYear: viewYear,
+            viewMonth: viewMonth
+        )
+        return projectSummaries(from: filtered, projects: projects, search: search)
     }
 
     static func projectSummaries(
@@ -184,24 +225,23 @@ enum HistoryBrowseHelper {
 
     // MARK: - Private
 
-    private static func groupLabel(
-        for task: Task,
+    static func taskIsInPeriod(
+        _ task: Task,
         period: HistoryPeriod,
-        calendar: Calendar
-    ) -> String {
-        guard let date = resolvedCompletedAt(for: task, calendar: calendar) else { return "" }
+        viewYear: Int,
+        viewMonth: Int
+    ) -> Bool {
+        guard let (year, month) = DateHelpers.yearMonth(fromKey: task.dateKey) else {
+            return false
+        }
 
         switch period {
+        case .month:
+            return year == viewYear && month == viewMonth
         case .year:
-            let formatter = DateFormatter()
-            formatter.locale = .current
-            formatter.setLocalizedDateFormatFromTemplate("MMMM")
-            return formatter.string(from: date)
-        case .month, .project:
-            let formatter = DateFormatter()
-            formatter.locale = .current
-            formatter.setLocalizedDateFormatFromTemplate("EEE, MMM d")
-            return formatter.string(from: date)
+            return year == viewYear
+        case .project:
+            return false
         }
     }
 }

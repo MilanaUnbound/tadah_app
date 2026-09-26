@@ -1,14 +1,26 @@
 import SwiftUI
 import SwiftData
 
+enum TaskRowLeadingAccessory {
+    case checkbox
+    case dragHandle
+}
+
 struct TaskRow: View {
     @Environment(TaskDeleteUndoController.self) private var taskDeleteUndo
+    @Environment(\.appTheme) private var theme
 
     let task: Task
     let onToggleComplete: () -> Void
     var isInteractive: Bool = true
+    var checkboxIsInteractive: Bool = true
+    var showsScheduleSubtitle: Bool = false
+    var onRowTap: (() -> Void)? = nil
     var onDeleteUpcoming: (() -> Void)? = nil
     var onCategoryTap: (() -> Void)? = nil
+    var trailingDateLabel: String? = nil
+    var leadingAccessory: TaskRowLeadingAccessory = .checkbox
+    var reorderDragGesture: AnyGesture<DragGesture.Value>? = nil
 
     @Query(sort: \Project.name) private var projects: [Project]
 
@@ -25,7 +37,7 @@ struct TaskRow: View {
     }
 
     private var cardBackground: Color {
-        isPendingDelete ? pendingDeleteBackground : cardSurface
+        isPendingDelete ? pendingDeleteBackground : theme.card
     }
 
     @State private var checkTrim: CGFloat = 0
@@ -33,13 +45,8 @@ struct TaskRow: View {
     @State private var strikeProgress: CGFloat = 0
     @State private var isPressing = false
 
-    private let borderGray = Color(red: 0xE5 / 255, green: 0xE7 / 255, blue: 0xEB / 255)
-    private let checkboxGray = Color(red: 0xD1 / 255, green: 0xD5 / 255, blue: 0xDB / 255)
-    private let disabledText = Color(red: 0x9C / 255, green: 0xA3 / 255, blue: 0xAF / 255)
-    private let cardSurface = Color(.secondarySystemBackground)
     private let pendingDeleteBackground = Color(red: 0xFF / 255, green: 0xF5 / 255, blue: 0xF5 / 255)
     private let pendingDeleteTitle = Color(red: 0xF8 / 255, green: 0x71 / 255, blue: 0x71 / 255)
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
 
     private var displayColor: Color {
         TaskCategoryDisplay.displayColor(for: task, projects: projects)
@@ -51,7 +58,7 @@ struct TaskRow: View {
 
     private var badgeBackground: Color {
         task.isCompleted
-            ? Color(.tertiarySystemFill)
+            ? theme.btnBg
             : TaskCategoryDisplay.lightBackground(for: task, projects: projects)
     }
 
@@ -61,8 +68,8 @@ struct TaskRow: View {
 
     private var titleColor: Color {
         if isPendingDelete { return pendingDeleteTitle }
-        if task.isCompleted { return disabledText }
-        return Color.primary
+        if task.isCompleted { return theme.textFaint }
+        return theme.text
     }
 
     private var shouldStrikethroughTitle: Bool {
@@ -73,13 +80,19 @@ struct TaskRow: View {
         task.isCompleted && !isPendingDelete
     }
 
+    private var shouldShowScheduleSubtitle: Bool {
+        showsScheduleSubtitle && !task.isCompleted && task.scheduledDate != nil
+    }
+
     var body: some View {
         HStack(spacing: 16) {
-            checkbox
+            rowTapTarget
 
-            titleView
-
-            Spacer(minLength: 0)
+            if let trailingDateLabel {
+                Text(trailingDateLabel)
+                    .font(.spaceGrotesk(.medium, size: 12))
+                    .foregroundStyle(theme.textFaint)
+            }
 
             categoryBadge
         }
@@ -88,12 +101,12 @@ struct TaskRow: View {
         .background(cardBackground)
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(task.isCompleted ? borderGray : displayColor)
+                .fill(task.isCompleted ? theme.border : displayColor)
                 .frame(width: 3)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 1)
+        .shadow(color: theme.cardShadowColor, radius: 4, x: 0, y: 1)
         .opacity(rowOpacity)
         .animation(.easeOut(duration: 0.2), value: taskDeleteUndo.pendingDeleteTaskID)
         .allowsHitTesting(rowIsInteractive)
@@ -112,12 +125,47 @@ struct TaskRow: View {
         }
     }
 
+    @ViewBuilder
+    private var rowTapTarget: some View {
+        let target = HStack(spacing: 16) {
+            leadingView
+            titleView
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        if onRowTap != nil {
+            target
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard rowIsInteractive else { return }
+                    onRowTap?()
+                }
+        } else {
+            target
+        }
+    }
+
+    @ViewBuilder
+    private var leadingView: some View {
+        switch leadingAccessory {
+        case .checkbox:
+            checkbox
+        case .dragHandle:
+            dragHandleView
+        }
+    }
+
+    @ViewBuilder
+    private var dragHandleView: some View {
+        DragHandleView(isCompleted: task.isCompleted)
+            .modifier(OptionalHighPriorityDragGesture(gesture: reorderDragGesture))
+    }
+
     private var checkbox: some View {
         Group {
-            if rowIsInteractive {
+            if rowIsInteractive && checkboxIsInteractive {
                 Button {
-                    print("Toggle task:", task.id, "completed:", !task.isCompleted)
-
                     withAnimation(.easeOut(duration: 0.22)) {
                         onToggleComplete()
                     }
@@ -139,7 +187,7 @@ struct TaskRow: View {
                 .accessibilityLabel(task.isCompleted ? "Mark incomplete" : "Mark complete")
             } else {
                 checkboxContent
-                    .accessibilityHidden(true)
+                    .accessibilityHidden(checkboxIsInteractive == false)
             }
         }
         .frame(width: 24, height: 24)
@@ -151,7 +199,7 @@ struct TaskRow: View {
                 .fill(task.isCompleted ? displayColor : Color.clear)
 
             Circle()
-                .stroke(task.isCompleted ? displayColor : checkboxGray, lineWidth: 2)
+                .stroke(task.isCompleted ? displayColor : theme.checkBorder, lineWidth: 2)
 
             CheckmarkShape()
                 .trim(from: 0, to: checkTrim)
@@ -161,28 +209,43 @@ struct TaskRow: View {
     }
 
     private var titleView: some View {
-        HStack(spacing: 6) {
-            if task.showsRepeatIcon {
-                Image(systemName: "repeat")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(task.isCompleted ? disabledText : violet.opacity(0.85))
-                    .accessibilityLabel("Recurring task")
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                if task.showsRepeatIcon {
+                    Image(systemName: "repeat")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(task.isCompleted ? theme.textFaint : AppTheme.violet.opacity(0.85))
+                        .accessibilityLabel("Recurring task")
+                }
+
+                Text(task.title)
+                    .font(.spaceGrotesk(titleFontWeight, size: 14))
+                    .foregroundStyle(titleColor)
+                    .strikethrough(shouldStrikethroughTitle)
+                    .lineLimit(1)
+                    .background(
+                        WidthReader(width: $titleWidth)
+                    )
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(theme.textFaint)
+                            .frame(width: titleWidth * strikeProgress, height: 1.5)
+                            .opacity(showAnimatedStrike ? 1 : 0)
+                    }
+                    .animation(.easeOut(duration: 0.2), value: taskDeleteUndo.pendingDeleteTaskID)
             }
 
-            Text(task.title)
-                .font(.spaceGrotesk(titleFontWeight, size: 14))
-                .foregroundStyle(titleColor)
-                .strikethrough(shouldStrikethroughTitle)
-                .background(
-                    WidthReader(width: $titleWidth)
-                )
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(disabledText)
-                        .frame(width: titleWidth * strikeProgress, height: 1.5)
-                        .opacity(showAnimatedStrike ? 1 : 0)
+            if shouldShowScheduleSubtitle {
+                HStack(spacing: 3) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(theme.textMuted)
+
+                    Text(DateHelpers.shortMonthDay(for: task.resolvedScheduledDate))
+                        .font(.spaceGrotesk(.medium, size: 12))
+                        .foregroundStyle(theme.textMuted)
                 }
-                .animation(.easeOut(duration: 0.2), value: taskDeleteUndo.pendingDeleteTaskID)
+            }
         }
     }
 
@@ -190,7 +253,7 @@ struct TaskRow: View {
     private var categoryBadge: some View {
         let badge = Text(displayName)
             .font(.spaceGrotesk(.semibold, size: 12))
-            .foregroundStyle(task.isCompleted ? disabledText : displayColor)
+            .foregroundStyle(task.isCompleted ? theme.textFaint : displayColor)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(badgeBackground)
@@ -221,6 +284,18 @@ struct TaskRow: View {
             }
         } else {
             updates()
+        }
+    }
+}
+
+private struct OptionalHighPriorityDragGesture: ViewModifier {
+    let gesture: AnyGesture<DragGesture.Value>?
+
+    func body(content: Content) -> some View {
+        if let gesture {
+            content.highPriorityGesture(gesture)
+        } else {
+            content
         }
     }
 }

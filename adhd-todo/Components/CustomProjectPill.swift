@@ -7,6 +7,8 @@ struct CustomProjectPill: View {
     let onSelect: () -> Void
     let onDelete: () -> Void
 
+    @Environment(\.appTheme) private var theme
+
     var body: some View {
         HStack(spacing: 4) {
             Button(action: onSelect) {
@@ -23,7 +25,7 @@ struct CustomProjectPill: View {
             Button(action: onDelete) {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(theme.textMuted)
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.plain)

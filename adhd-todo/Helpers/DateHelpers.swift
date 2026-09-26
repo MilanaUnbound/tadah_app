@@ -44,6 +44,27 @@ enum DateHelpers {
         return f
     }()
 
+    private static let navigatorMonthFullFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .current
+        f.setLocalizedDateFormatFromTemplate("MMMM")
+        return f
+    }()
+
+    private static let shortMonthDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .current
+        f.setLocalizedDateFormatFromTemplate("MMM d")
+        return f
+    }()
+
+    private static let monthYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .current
+        f.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        return f
+    }()
+
     /// Localized abbreviated month for period navigator (e.g. `Sep`).
     static func navigatorMonthAbbreviation(
         year: Int,
@@ -56,6 +77,39 @@ enum DateHelpers {
         comps.day = 1
         guard let date = calendar.date(from: comps) else { return "" }
         return navigatorMonthFormatter.string(from: date)
+    }
+
+    /// Localized full month name for Recap period navigator (e.g. `January`).
+    static func navigatorMonthFullName(
+        year: Int,
+        month: Int,
+        calendar: Calendar = .current
+    ) -> String {
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = 1
+        guard let date = calendar.date(from: comps) else { return "" }
+        return navigatorMonthFullFormatter.string(from: date)
+    }
+
+    /// Localized short date (e.g. `Jan 15`) for reschedule labels and task row hints.
+    static func shortMonthDay(for date: Date) -> String {
+        shortMonthDayFormatter.string(from: date)
+    }
+
+    /// Localized month + year for calendar sheet header (e.g. `January 2026`).
+    static func monthYearLabel(
+        year: Int,
+        month: Int,
+        calendar: Calendar = .current
+    ) -> String {
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = 1
+        guard let date = calendar.date(from: comps) else { return "" }
+        return monthYearFormatter.string(from: date)
     }
 
     static func todaySubtitle(now: Date = Date()) -> String {

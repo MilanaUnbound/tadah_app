@@ -5,19 +5,19 @@ struct WeekdayTogglePill: View {
     let isSelected: Bool
     let onTap: () -> Void
 
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         Button {
             onTap()
         } label: {
             Text(label)
-                .font(.spaceGrotesk(.semibold, size: 12))
-                .foregroundStyle(isSelected ? Color.white : violet)
-                .frame(minWidth: 32)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-                .background(isSelected ? violet : violet.opacity(0.12))
+                .font(.spaceGrotesk(.semibold, size: 11))
+                .foregroundStyle(isSelected ? Color.white : AppTheme.violet)
+                .frame(minWidth: 28)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 6)
+                .background(isSelected ? AppTheme.violet : theme.btnBg)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -42,5 +42,6 @@ struct WeekdayPickerOption: Identifiable {
         WeekdayTogglePill(label: "M", isSelected: true, onTap: {})
         WeekdayTogglePill(label: "W", isSelected: false, onTap: {})
     }
+    .withAppTheme()
     .padding()
 }

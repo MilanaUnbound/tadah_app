@@ -2,34 +2,26 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    @Environment(AppPreferences.self) private var preferences
+    @Environment(\.appTheme) private var theme
     @State private var selectedTab: AppTab = .today
     @State private var taskDeleteUndo = TaskDeleteUndoController()
     @State private var categoryPicker = CategoryPickerController()
+    @State private var rescheduleController = RescheduleController()
     @Query(sort: [SortDescriptor(\Task.dateKey), SortDescriptor(\Task.title)]) private var allTasks: [Task]
     @Query(sort: \Project.name) private var projects: [Project]
-    @State private var streakCount: Int = 0
     @State private var isShowingSettings: Bool = false
+    @Environment(\.modelContext) private var modelContext
     
     init() {}
     
-    private struct StreakSignature: Equatable {
-        let id: UUID
-        let dateKey: String
-        let isBonus: Bool
-        let isCompleted: Bool
-    }
-
-    private var streakSignature: [StreakSignature] {
-        allTasks.map { StreakSignature(id: $0.id, dateKey: $0.dateKey, isBonus: $0.isBonus, isCompleted: $0.isCompleted) }
-    }
-
     var body: some View {
         GeometryReader { geo in
             let contentWidth = geo.size.width
             let sidePad = ScreenLayout.sidePadding(for: contentWidth)
 
             ZStack(alignment: .bottom) {
-                Color(.systemBackground)
+                theme.bg
                     .ignoresSafeArea()
 
                 VStack(alignment: .leading, spacing: 16) {
@@ -37,20 +29,17 @@ struct ContentView: View {
                         TabPillBar(selectedTab: $selectedTab)
                             .frame(maxWidth: .infinity)
 
-                        SettingsPillButton(
-                            onTap: { isShowingSettings = true },
-                            isActive: isShowingSettings
-                        )
+                        SettingsGearButton(onTap: { isShowingSettings = true })
                     }
 
                     Group {
                         switch selectedTab {
                         case .today:
-                            TodayView(streakCount: streakCount)
+                            TodayView()
                         case .history:
-                            HistoryView(streakCount: streakCount)
-                        case .recap:
-                            RecapView(streakCount: streakCount)
+                            HistoryView()
+                        case .focus:
+                            FocusView()
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -71,21 +60,51 @@ struct ContentView: View {
                             categoryPicker.apply(selection, tasks: allTasks)
                         },
                         onClose: {
-                            categoryPicker.dismiss()
+                            BottomSheetDragDismissState.dismissWithoutAnimation {
+                                categoryPicker.dismiss()
+                            }
                         }
                     )
-                    .transition(.opacity)
+                    .zIndex(1)
+                }
+
+                if let taskID = rescheduleController.taskID,
+                   let task = allTasks.first(where: { $0.id == taskID }) {
+                    let seriesTasks = RecurrenceSeriesHelper.seriesTasks(for: task, from: allTasks)
+                    RescheduleSheet(
+                        task: task,
+                        seriesTasks: seriesTasks,
+                        onConfirm: { result in
+                            rescheduleController.apply(
+                                result: result,
+                                task: task,
+                                allTasks: allTasks,
+                                projects: projects,
+                                in: modelContext
+                            )
+                        },
+                        onCancel: {
+                            BottomSheetDragDismissState.dismissWithoutAnimation {
+                                rescheduleController.dismiss()
+                            }
+                        }
+                    )
                     .zIndex(1)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .environment(\.screenContentWidth, contentWidth)
-            .environment(taskDeleteUndo)
-            .environment(categoryPicker)
-            .animation(.easeOut(duration: 0.2), value: categoryPicker.context?.id)
         }
+        .environment(taskDeleteUndo)
+        .environment(categoryPicker)
+        .environment(rescheduleController)
         .sheet(isPresented: $isShowingSettings) {
             SettingsSheetView()
+                .environment(taskDeleteUndo)
+                .environment(preferences)
+                .withAppTheme()
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(24)
         }
         .task {
             let todayKey = DateHelpers.todayKey()
@@ -96,64 +115,29 @@ struct ContentView: View {
             } else if lastKey != todayKey {
                 LastOpenedStore.setLastOpenedKey(todayKey)
             }
-
-            recomputeStreak(now: Date())
         }
-        .onChange(of: streakSignature) { _, _ in
-            recomputeStreak(now: Date())
-        }
-    }
-
-    private func recomputeStreak(now: Date) {
-        // Derived value: keep out of `body` so first frame renders ASAP.
-        var byDate: [String: [Task]] = [:]
-        byDate.reserveCapacity(64)
-        for t in allTasks {
-            byDate[t.dateKey, default: []].append(t)
-        }
-        streakCount = StreakCalculator.calculate(
-            todayKey: DateHelpers.todayKey(now: now),
-            tasksByDateKey: byDate,
-            now: now
-        )
+        .withAppTheme()
     }
 }
 
-private struct SettingsPillButton: View {
+private struct SettingsGearButton: View {
     let onTap: () -> Void
-    let isActive: Bool
 
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
-    private let tabBarBg = Color(.systemGray5)
-    private let inactiveText = Color(.secondaryLabel)
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         Button(action: onTap) {
             Image(systemName: "gearshape")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(isActive ? violet : inactiveText)
-                .frame(height: 38)
-                .frame(width: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(isActive ? Color.white : Color.clear)
-                )
-                .shadow(
-                    color: Color.black.opacity(isActive ? 0.08 : 0),
-                    radius: isActive ? 8 : 0,
-                    x: 0,
-                    y: isActive ? 2 : 0
-                )
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(theme.textSub)
+                .frame(width: 36, height: 36)
+                .background(theme.tabBg, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(tabBarBg)
-        )
     }
 }
 
 #Preview {
     ContentView()
+        .environment(AppPreferences())
 }

@@ -3,7 +3,7 @@ import SwiftUI
 enum AppTab: String, CaseIterable, Identifiable {
     case today
     case history
-    case recap
+    case focus
 
     var id: String { rawValue }
 
@@ -11,7 +11,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .today: "Today"
         case .history: "Log"
-        case .recap: "Recap"
+        case .focus: "Focus"
         }
     }
 
@@ -19,7 +19,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .today: "checkmark.square"
         case .history: "calendar"
-        case .recap: "chart.bar"
+        case .focus: "timer"
         }
     }
 }
@@ -27,9 +27,7 @@ enum AppTab: String, CaseIterable, Identifiable {
 struct TabPillBar: View {
     @Binding var selectedTab: AppTab
 
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
-    private let tabBarBg = Color(.systemGray5)
-    private let inactiveText = Color(.secondaryLabel)
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         HStack(spacing: 6) {
@@ -45,10 +43,10 @@ struct TabPillBar: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .foregroundStyle(tab == selectedTab ? violet : inactiveText)
+                    .foregroundStyle(tab == selectedTab ? AppTheme.violet : theme.textSub)
                     .background(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(tab == selectedTab ? Color.white : Color.clear)
+                            .fill(tab == selectedTab ? theme.card : Color.clear)
                     )
                     .shadow(
                         color: Color.black.opacity(tab == selectedTab ? 0.08 : 0),
@@ -63,7 +61,7 @@ struct TabPillBar: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(tabBarBg)
+                .fill(theme.tabBg)
         )
     }
 }

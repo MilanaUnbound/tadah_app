@@ -1,13 +1,21 @@
 import SwiftUI
 
+enum SwipeRightAction {
+    case complete
+    case custom(icon: String, handler: () -> Void)
+    case disabled
+}
+
 struct SwipeableTaskRow<Content: View>: View {
     @Environment(TaskDeleteUndoController.self) private var taskDeleteUndo
+    @Environment(\.reorderDragActiveID) private var reorderDragActiveID
 
     let taskID: UUID
     let categoryColor: Color
     let isCompleted: Bool
     let onToggleComplete: () -> Void
     let onDelete: () -> Void
+    var swipeRightAction: SwipeRightAction = .complete
     @ViewBuilder let content: () -> Content
 
     private var isPendingDelete: Bool {
@@ -16,7 +24,15 @@ struct SwipeableTaskRow<Content: View>: View {
 
     @State private var offsetX: CGFloat = 0
     @State private var isDragging = false
+    @State private var dragAxis: SwipeDragAxis?
+    @State private var suppressContentTaps = false
 
+    private enum SwipeDragAxis {
+        case horizontal
+        case vertical
+    }
+
+    private let axisLockDistance: CGFloat = 12
     private let threshold: CGFloat = 72
     private let maxOffset: CGFloat = 110
     private let revealThreshold: CGFloat = 8
@@ -24,7 +40,33 @@ struct SwipeableTaskRow<Content: View>: View {
     private let deleteRed = Color(red: 0xEF / 255, green: 0x44 / 255, blue: 0x44 / 255)
 
     private var showDeleteBackground: Bool { offsetX < -revealThreshold }
-    private var showCompleteBackground: Bool { offsetX > revealThreshold }
+    private var showRightSwipeBackground: Bool {
+        guard allowsPositiveSwipe else { return false }
+        return offsetX > revealThreshold
+    }
+    private var isSwipeEnabled: Bool { reorderDragActiveID == nil && isPendingDelete == false }
+
+    private var allowsPositiveSwipe: Bool {
+        switch swipeRightAction {
+        case .complete:
+            return !isCompleted
+        case .custom:
+            return true
+        case .disabled:
+            return false
+        }
+    }
+
+    private var rightSwipeIcon: String {
+        switch swipeRightAction {
+        case .complete:
+            return isCompleted ? "arrow.uturn.backward" : "checkmark"
+        case .custom(let icon, _):
+            return icon
+        case .disabled:
+            return "checkmark"
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -32,10 +74,11 @@ struct SwipeableTaskRow<Content: View>: View {
 
             content()
                 .offset(x: offsetX)
-                .gesture(isPendingDelete ? nil : swipeGesture)
+                .allowsHitTesting(!suppressContentTaps)
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .animation(isDragging ? nil : .easeOut(duration: 0.25), value: offsetX)
+        .simultaneousGesture(isSwipeEnabled ? swipeGesture : nil)
     }
 
     @ViewBuilder
@@ -50,11 +93,11 @@ struct SwipeableTaskRow<Content: View>: View {
                             .foregroundStyle(.white)
                             .padding(.trailing, 20)
                     }
-            } else if showCompleteBackground {
+            } else if showRightSwipeBackground {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(categoryColor)
                     .overlay(alignment: .leading) {
-                        Image(systemName: isCompleted ? "arrow.uturn.backward" : "checkmark")
+                        Image(systemName: rightSwipeIcon)
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.white)
                             .padding(.leading, 20)
@@ -66,18 +109,35 @@ struct SwipeableTaskRow<Content: View>: View {
     }
 
     private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
                 let dx = value.translation.width
                 let dy = value.translation.height
 
-                guard abs(dx) > abs(dy) else { return }
+                if dragAxis == nil {
+                    let absDx = abs(dx)
+                    let absDy = abs(dy)
+                    guard max(absDx, absDy) >= axisLockDistance else { return }
+                    dragAxis = absDx > absDy ? .horizontal : .vertical
+                    if dragAxis == .horizontal {
+                        suppressContentTaps = true
+                    }
+                }
+
+                guard dragAxis == .horizontal else { return }
 
                 isDragging = true
+                if dx > 0 && !allowsPositiveSwipe { return }
                 offsetX = min(maxOffset, max(-maxOffset, dx))
             }
             .onEnded { _ in
-                isDragging = false
+                defer {
+                    isDragging = false
+                    dragAxis = nil
+                    releaseContentTapsAfterSwipe()
+                }
+
+                guard dragAxis == .horizontal else { return }
 
                 if offsetX < -threshold {
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -85,16 +145,40 @@ struct SwipeableTaskRow<Content: View>: View {
                     }
                     onDelete()
                 } else if offsetX > threshold {
-                    withAnimation(.easeOut(duration: 0.22)) {
-                        onToggleComplete()
-                        offsetX = 0
-                    }
+                    handleRightSwipe()
                 } else {
                     withAnimation(.easeOut(duration: 0.2)) {
                         offsetX = 0
                     }
                 }
             }
+    }
+
+    private func handleRightSwipe() {
+        switch swipeRightAction {
+        case .complete:
+            guard !isCompleted else { return }
+            withAnimation(.easeOut(duration: 0.22)) {
+                onToggleComplete()
+                offsetX = 0
+            }
+        case .custom(_, let handler):
+            withAnimation(.easeOut(duration: 0.2)) {
+                offsetX = 0
+            }
+            handler()
+        case .disabled:
+            withAnimation(.easeOut(duration: 0.2)) {
+                offsetX = 0
+            }
+        }
+    }
+
+    private func releaseContentTapsAfterSwipe() {
+        guard suppressContentTaps else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            suppressContentTaps = false
+        }
     }
 }
 

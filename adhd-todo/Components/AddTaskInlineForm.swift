@@ -21,6 +21,7 @@ struct AddTaskInlineForm: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Project.name) private var projects: [Project]
+    @Environment(\.appTheme) private var theme
 
     @State private var title: String = ""
     @State private var selection: CategorySelection = LastUsedSelectionStore.load() ?? .builtin(.other)
@@ -29,6 +30,8 @@ struct AddTaskInlineForm: View {
     @State private var isRepeatEnabled: Bool = false
     @State private var selectedRecurrenceRule: RecurrenceRule = .daily
     @State private var customWeekdays: Set<Int> = []
+    @State private var repeatHasEndDate: Bool = false
+    @State private var repeatEndDate: Date = DateHelpers.startOfToday()
     @State private var isCreatingProject: Bool = false
     @State private var newProjectName: String = ""
     @FocusState private var focus: FocusTarget?
@@ -39,8 +42,9 @@ struct AddTaskInlineForm: View {
         return start ... end
     }
 
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
-    private let sectionBorder = Color(red: 0xF0 / 255, green: 0xF0 / 255, blue: 0xF0 / 255)
+    private let violet = AppTheme.violet
+
+    private var sectionBorder: Color { theme.border }
 
     private var trimmedTitle: String {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -67,7 +71,8 @@ struct AddTaskInlineForm: View {
             return RecurrenceFormInput(
                 isEnabled: true,
                 rule: selectedRecurrenceRule,
-                customWeekdays: customWeekdays
+                customWeekdays: customWeekdays,
+                end: repeatHasEndDate ? .until(Calendar.current.startOfDay(for: max(repeatEndDate, scheduledDate))) : .none
             )
         }
         return .disabled
@@ -84,7 +89,7 @@ struct AddTaskInlineForm: View {
                 .onTapGesture { focus = .title }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
-                .background(Color(.systemGray6))
+                .background(theme.inputBg)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             FlowLayout(spacing: 10, rowSpacing: 10) {
@@ -106,18 +111,18 @@ struct AddTaskInlineForm: View {
                 HStack {
                     Text("Scheduled for")
                         .font(.spaceGrotesk(.medium, size: 13))
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(theme.textSub)
                     Spacer()
                     Text(DateHelpers.scheduleLabel(for: scheduledDate))
                         .font(.spaceGrotesk(.semibold, size: 13))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(theme.text)
                     Image(systemName: "calendar")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(violet)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
-                .background(Color(.systemGray6))
+                .background(theme.inputBg)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -149,34 +154,19 @@ struct AddTaskInlineForm: View {
             Toggle(isOn: $isRepeatEnabled) {
                 Text("Repeat")
                     .font(.spaceGrotesk(.medium, size: 13))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(theme.text)
             }
             .tint(violet)
 
             if isRepeatEnabled {
-                Picker("Repeat", selection: $selectedRecurrenceRule) {
-                    ForEach(RecurrenceRule.repeatableCases) { rule in
-                        Text(rule.displayName).tag(rule)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                if selectedRecurrenceRule == .custom {
-                    HStack(spacing: 8) {
-                        ForEach(WeekdayPickerOption.mondayFirstOptions) { option in
-                            WeekdayTogglePill(
-                                label: option.label,
-                                isSelected: customWeekdays.contains(option.id)
-                            ) {
-                                if customWeekdays.contains(option.id) {
-                                    customWeekdays.remove(option.id)
-                                } else {
-                                    customWeekdays.insert(option.id)
-                                }
-                            }
-                        }
-                    }
-                }
+                RecurrenceFormSection(
+                    selectedRule: $selectedRecurrenceRule,
+                    customWeekdays: $customWeekdays,
+                    hasEndDate: $repeatHasEndDate,
+                    endDate: $repeatEndDate,
+                    startDate: scheduledDate,
+                    scheduleRangeUpperBound: scheduleRange.upperBound
+                )
             }
 
             HStack(spacing: 12) {
@@ -203,13 +193,13 @@ struct AddTaskInlineForm: View {
                         .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.secondary)
-                .background(Color(.systemGray5))
+                .foregroundStyle(theme.textSub)
+                .background(theme.btnBg)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
         .padding(16)
-        .background(Color.white)
+        .background(theme.card)
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(violet, lineWidth: 2)
@@ -225,6 +215,8 @@ struct AddTaskInlineForm: View {
                 isRepeatEnabled = false
                 selectedRecurrenceRule = .daily
                 customWeekdays = []
+                repeatHasEndDate = false
+                repeatEndDate = scheduledDate
                 isCreatingProject = false
                 newProjectName = ""
                 restoreLastUsedProjectSelection()
@@ -276,7 +268,7 @@ struct AddTaskInlineForm: View {
                         .font(.spaceGrotesk(.medium, size: 13))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(Color(.systemGray6))
+                        .background(theme.inputBg)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                     Button("Create") {
@@ -291,7 +283,7 @@ struct AddTaskInlineForm: View {
                         newProjectName = ""
                     }
                     .font(.spaceGrotesk(.semibold, size: 13))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(theme.textSub)
                 }
             } else {
                 Button {

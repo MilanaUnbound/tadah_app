@@ -4,10 +4,10 @@ struct ProgressBar: View {
     let doneCount: Int
     let totalCount: Int
 
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
     private let pink = Color(red: 0xFF / 255, green: 0x33 / 255, blue: 0x99 / 255)
     private let fuchsia = Color(red: 0xE0 / 255, green: 0x40 / 255, blue: 0xFB / 255)
-    private let textMuted = Color(red: 0x6B / 255, green: 0x72 / 255, blue: 0x80 / 255)
+
+    @Environment(\.appTheme) private var theme
 
     private var clampedDone: Int {
         min(max(doneCount, 0), max(totalCount, 0))
@@ -35,7 +35,7 @@ struct ProgressBar: View {
             HStack {
                 Text("\(clampedDone) of \(clampedTotal) done")
                     .font(.spaceGrotesk(.semibold, size: 12))
-                    .foregroundStyle(textMuted)
+                    .foregroundStyle(theme.textMuted)
 
                 Spacer()
 
@@ -45,12 +45,12 @@ struct ProgressBar: View {
                         .foregroundStyle(Color.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(violet)
+                        .background(AppTheme.violet)
                         .clipShape(Capsule())
                 } else {
                     Text(percentageText)
                         .font(.spaceGrotesk(.bold, size: 12))
-                        .foregroundStyle(violet)
+                        .foregroundStyle(AppTheme.violet)
                 }
             }
 
@@ -58,13 +58,13 @@ struct ProgressBar: View {
                 let width = geo.size.width
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color(red: 0xE5 / 255, green: 0xE7 / 255, blue: 0xEB / 255))
+                        .fill(theme.progressBg)
                         .frame(height: 10)
 
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: isComplete ? [violet, fuchsia] : [violet, pink],
+                                colors: isComplete ? [AppTheme.violet, fuchsia] : [AppTheme.violet, pink],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )

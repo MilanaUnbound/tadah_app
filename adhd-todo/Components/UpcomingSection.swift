@@ -2,43 +2,104 @@ import SwiftUI
 
 struct UpcomingSection: View {
     @Environment(CategoryPickerController.self) private var categoryPicker
+    @Environment(\.appTheme) private var theme
 
     let tasks: [Task]
     let projects: [Project]
-    let onReschedule: (_ task: Task, _ newDate: Date) -> Void
+    let onScheduleTap: (_ task: Task) -> Void
     let onDelete: (_ task: Task) -> Void
+    let onRecurringSwipeRight: (_ instances: [Task]) -> Void
 
     @State private var isOpen = false
-    @State private var activeTaskID: UUID? = nil
-    @State private var draftDates: [UUID: Date] = [:]
+    @State private var itemOrder: [String] = UpcomingOrderStore.load()
 
-    private let sectionLabel = Color(red: 0xAA / 255, green: 0xAA / 255, blue: 0xAA / 255)
-    private let chevronColor = Color(red: 0xBB / 255, green: 0xBB / 255, blue: 0xBB / 255)
-    private let trayBackground = Color(red: 0xFA / 255, green: 0xFA / 255, blue: 0xFA / 255)
-    private let trayDivider = Color(red: 0xF0 / 255, green: 0xF0 / 255, blue: 0xF0 / 255)
-    private let deleteBg = Color(red: 0xFF / 255, green: 0xF0 / 255, blue: 0xF0 / 255)
-    private let deleteRed = Color(red: 0xEF / 255, green: 0x44 / 255, blue: 0x44 / 255)
+    private struct UpcomingItem: Identifiable {
+        enum Kind {
+            case single(Task)
+            case recurring(seriesId: UUID, tasks: [Task])
+        }
+
+        let id: String
+        let kind: Kind
+
+        var representative: Task {
+            switch kind {
+            case .single(let task):
+                return task
+            case .recurring(_, let tasks):
+                return tasks.first(where: { $0.isCompleted == false })
+                    ?? tasks.min(by: { $0.resolvedScheduledDate < $1.resolvedScheduledDate })
+                    ?? tasks[0]
+            }
+        }
+
+        var tasks: [Task] {
+            switch kind {
+            case .single(let task):
+                return [task]
+            case .recurring(_, let tasks):
+                return tasks
+            }
+        }
+
+        var dateLabel: String {
+            let keys = tasks.map(\.dateKey)
+            guard let minKey = keys.min(), let maxKey = keys.max() else {
+                return DateHelpers.chipLabel(forKey: representative.dateKey)
+            }
+            if minKey == maxKey {
+                return DateHelpers.chipLabel(forKey: minKey)
+            }
+            return "\(DateHelpers.chipLabel(forKey: minKey))–\(DateHelpers.chipLabel(forKey: maxKey))"
+        }
+    }
+
+    private var rawItems: [UpcomingItem] {
+        let groups = Dictionary(grouping: tasks, by: { $0.recurrenceSeriesId })
+
+        var out: [UpcomingItem] = []
+        out.reserveCapacity(tasks.count)
+
+        for (seriesId, bucket) in groups {
+            if let seriesId {
+                let sorted = bucket.sorted(by: { $0.resolvedScheduledDate < $1.resolvedScheduledDate })
+                out.append(UpcomingItem(id: "series-\(seriesId.uuidString)", kind: .recurring(seriesId: seriesId, tasks: sorted)))
+            } else {
+                for task in bucket {
+                    out.append(UpcomingItem(id: "task-\(task.id.uuidString)", kind: .single(task)))
+                }
+            }
+        }
+
+        return out
+    }
+
+    private var itemIDSignature: [String] {
+        rawItems.map(\.id).sorted()
+    }
+
+    private var items: [UpcomingItem] {
+        let byID = Dictionary(uniqueKeysWithValues: rawItems.map { ($0.id, $0) })
+        return itemOrder.compactMap { byID[$0] }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
                 withAnimation(.easeOut(duration: 0.2)) {
                     isOpen.toggle()
-                    if isOpen == false {
-                        activeTaskID = nil
-                    }
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Text("Upcoming · \(tasks.count)")
+                    Text("Upcoming · \(items.count)")
                         .font(.spaceGrotesk(.medium, size: 12))
-                        .foregroundStyle(sectionLabel)
+                        .foregroundStyle(theme.textMuted)
                         .textCase(.uppercase)
                         .tracking(0.8)
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(chevronColor)
+                        .foregroundStyle(theme.textFaint)
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
                         .animation(.easeOut(duration: 0.2), value: isOpen)
 
@@ -49,172 +110,225 @@ struct UpcomingSection: View {
             .buttonStyle(.plain)
 
             if isOpen {
-                VStack(spacing: 8) {
-                    ForEach(tasks) { task in
-                        let isActive = activeTaskID == task.id
-                        VStack(spacing: 0) {
-                            UpcomingTaskRow(
-                                task: task,
-                                projects: projects,
-                                isExpanded: isActive,
-                                onTapRow: { toggleActive(task) },
-                                onCategoryTap: { categoryPicker.present(task: task) }
-                            )
-
-                            if isActive {
-                                tray(for: task)
-                            }
-                        }
-                    }
+                ReorderableUpcomingList(
+                    items: items,
+                    onMove: moveItem
+                ) { item, dragGesture in
+                    upcomingRow(for: item, reorderDragGesture: dragGesture)
                 }
             }
+        }
+        .onAppear {
+            syncItemOrder()
+        }
+        .onChange(of: itemIDSignature) { _, _ in
+            syncItemOrder()
         }
     }
 
-    private func toggleActive(_ task: Task) {
-        withAnimation(.easeOut(duration: 0.2)) {
-            if activeTaskID == task.id {
-                activeTaskID = nil
-            } else {
-                activeTaskID = task.id
-                if draftDates[task.id] == nil {
-                    draftDates[task.id] = task.resolvedScheduledDate
-                }
-            }
-        }
-    }
+    private struct ReorderableUpcomingList<RowContent: View>: View {
+        @Environment(TaskDeleteUndoController.self) private var taskDeleteUndo
 
-    private func tray(for task: Task) -> some View {
-        let today = DateHelpers.startOfToday()
-        let maxDate = Calendar.current.date(byAdding: .year, value: 2, to: today) ?? today
-        let range: ClosedRange<Date> = today ... maxDate
+        let items: [UpcomingItem]
+        let onMove: (String, Int) -> Void
+        @ViewBuilder let rowContent: (UpcomingItem, AnyGesture<DragGesture.Value>?) -> RowContent
 
-        let selection = Binding<Date>(
-            get: { draftDates[task.id] ?? task.resolvedScheduledDate },
-            set: { newValue in
-                draftDates[task.id] = newValue
-            }
-        )
+        @State private var draggingRepresentativeID: UUID?
+        @State private var dragOffset: CGFloat = 0
+        @State private var rowCenters: [UUID: CGFloat] = [:]
+        @State private var dragAxis: ReorderDragAxis?
 
-        return HStack(spacing: 10) {
-            DatePicker(
-                "",
-                selection: selection,
-                in: range,
-                displayedComponents: [.date]
-            )
-            .labelsHidden()
-            .datePickerStyle(.compact)
-            .onChange(of: selection.wrappedValue) { _, newValue in
-                onReschedule(task, newValue)
-                withAnimation(.easeOut(duration: 0.2)) {
-                    activeTaskID = nil
-                }
-            }
-
-            Button {
-                onDelete(task)
-                withAnimation(.easeOut(duration: 0.2)) {
-                    activeTaskID = nil
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("Delete")
-                        .font(.spaceGrotesk(.medium, size: 13))
-                }
-                .foregroundStyle(deleteRed)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(deleteBg)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(trayBackground)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(trayDivider)
-                .frame(height: 1)
-        }
-        .clipShape(
-            UnevenRoundedRectangle(
-                bottomLeadingRadius: 14,
-                bottomTrailingRadius: 14
-            )
-        )
-        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
-    }
-
-    private struct UpcomingTaskRow: View {
-        let task: Task
-        let projects: [Project]
-        let isExpanded: Bool
-        let onTapRow: () -> Void
-        let onCategoryTap: () -> Void
-
-        private let cardSurface = Color.white
-
-        private var displayColor: Color {
-            TaskCategoryDisplay.displayColor(for: task, projects: projects)
+        private enum ReorderDragAxis {
+            case vertical
+            case horizontal
         }
 
-        private var displayName: String {
-            TaskCategoryDisplay.displayName(for: task, projects: projects)
-        }
-
-        private var dateLabel: String {
-            DateHelpers.chipLabel(forKey: task.dateKey)
-        }
+        private let axisLockDistance: CGFloat = 12
 
         var body: some View {
-            HStack(spacing: 12) {
-                Circle()
-                    .stroke(Color(red: 0xE0 / 255, green: 0xE0 / 255, blue: 0xE0 / 255), lineWidth: 2)
-                    .fill(Color.clear)
-                    .frame(width: 20, height: 20)
-
-                Text(task.title)
-                    .font(.spaceGrotesk(.medium, size: 15))
-                    .foregroundStyle(Color(red: 0x66 / 255, green: 0x66 / 255, blue: 0x66 / 255))
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                Text(dateLabel)
-                    .font(.spaceGrotesk(.medium, size: 12))
-                    .foregroundStyle(Color(red: 0xBB / 255, green: 0xBB / 255, blue: 0xBB / 255))
-
-                Button(action: onCategoryTap) {
-                    Text(displayName)
-                        .font(.spaceGrotesk(.medium, size: 12))
-                        .foregroundStyle(displayColor)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
-                        .background(displayColor.opacity(0.12))
-                        .clipShape(Capsule())
+            VStack(spacing: 8) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    rowContent(item, dragGesture(for: item, at: index))
+                        .offset(y: rowOffset(for: item))
+                        .zIndex(draggingRepresentativeID == item.representative.id ? 1 : 0)
+                        .background(rowCenterReader(for: item))
                 }
-                .buttonStyle(.plain)
             }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onTapRow)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
-            .background(cardSurface)
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 14,
-                    bottomLeadingRadius: isExpanded ? 0 : 14,
-                    bottomTrailingRadius: isExpanded ? 0 : 14,
-                    topTrailingRadius: 14
-                )
-            )
-            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 1)
-            .opacity(0.75)
+            .coordinateSpace(name: "upcomingReorderList")
+            .onPreferenceChange(UpcomingRowCenterPreferenceKey.self) { rowCenters = $0 }
+            .environment(\.reorderDragActiveID, draggingRepresentativeID)
+            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.82), value: dragOffset)
+            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.82), value: draggingRepresentativeID)
         }
+
+        @ViewBuilder
+        private func rowCenterReader(for item: UpcomingItem) -> some View {
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: UpcomingRowCenterPreferenceKey.self,
+                    value: [item.representative.id: geo.frame(in: .named("upcomingReorderList")).midY]
+                )
+            }
+        }
+
+        private func rowOffset(for item: UpcomingItem) -> CGFloat {
+            guard draggingRepresentativeID == item.representative.id else { return 0 }
+            return dragOffset
+        }
+
+        private func dragGesture(for item: UpcomingItem, at index: Int) -> AnyGesture<DragGesture.Value>? {
+            guard taskDeleteUndo.isPendingDelete(taskID: item.representative.id) == false else { return nil }
+
+            return AnyGesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { value in
+                        let dx = value.translation.width
+                        let dy = value.translation.height
+
+                        if dragAxis == nil {
+                            let absDx = abs(dx)
+                            let absDy = abs(dy)
+                            guard max(absDx, absDy) >= axisLockDistance else { return }
+                            dragAxis = absDy > absDx ? .vertical : .horizontal
+                        }
+
+                        guard dragAxis == .vertical else { return }
+
+                        if draggingRepresentativeID == nil {
+                            draggingRepresentativeID = item.representative.id
+                        }
+                        guard draggingRepresentativeID == item.representative.id else { return }
+                        dragOffset = dy
+                    }
+                    .onEnded { _ in
+                        defer {
+                            dragAxis = nil
+                        }
+
+                        guard dragAxis == .vertical, draggingRepresentativeID == item.representative.id else {
+                            draggingRepresentativeID = nil
+                            dragOffset = 0
+                            return
+                        }
+
+                        let targetIndex = targetIndex(for: item, from: index)
+                        if targetIndex != index {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                onMove(item.id, targetIndex)
+                            }
+                        }
+
+                        draggingRepresentativeID = nil
+                        dragOffset = 0
+                    }
+            )
+        }
+
+        private func targetIndex(for item: UpcomingItem, from sourceIndex: Int) -> Int {
+            guard let draggedCenter = rowCenters[item.representative.id] else { return sourceIndex }
+            let currentY = draggedCenter + dragOffset
+
+            var target = sourceIndex
+
+            for (index, candidate) in items.enumerated() where candidate.id != item.id {
+                guard let center = rowCenters[candidate.representative.id] else { continue }
+
+                if index < sourceIndex, currentY < center {
+                    target = index
+                    break
+                }
+
+                if index > sourceIndex, currentY > center {
+                    target = index
+                }
+            }
+
+            return target
+        }
+    }
+
+    private func syncItemOrder() {
+        let byID = Dictionary(uniqueKeysWithValues: rawItems.map { ($0.id, $0) })
+        let defaultNewOrder: (String, String) -> Bool = { lhs, rhs in
+            guard let left = byID[lhs], let right = byID[rhs] else { return lhs < rhs }
+            return left.representative.resolvedScheduledDate < right.representative.resolvedScheduledDate
+        }
+
+        itemOrder = UpcomingOrderStore.merge(
+            itemIDs: rawItems.map(\.id),
+            defaultOrderForNew: defaultNewOrder,
+            savedOrder: itemOrder
+        )
+        UpcomingOrderStore.save(itemOrder)
+    }
+
+    private func moveItem(itemID: String, toIndex: Int) {
+        UpcomingOrderStore.move(itemID: itemID, toIndex: toIndex, in: &itemOrder)
+        UpcomingOrderStore.save(itemOrder)
+    }
+
+    @ViewBuilder
+    private func upcomingRow(
+        for item: UpcomingItem,
+        reorderDragGesture: AnyGesture<DragGesture.Value>?
+    ) -> some View {
+        let swipeRightAction: SwipeRightAction = {
+            switch item.kind {
+            case .single:
+                return .complete
+            case .recurring:
+                return .custom(icon: "calendar") {
+                    onRecurringSwipeRight(item.tasks)
+                }
+            }
+        }()
+
+        let deleteUpcomingAction: (() -> Void)? = {
+            if case .recurring = item.kind {
+                return { onDelete(item.representative) }
+            }
+            return nil
+        }()
+
+        SwipeableTaskRow(
+            taskID: item.representative.id,
+            categoryColor: TaskCategoryDisplay.displayColor(
+                for: item.representative,
+                projects: projects
+            ),
+            isCompleted: item.representative.isCompleted,
+            onToggleComplete: {
+                TaskCompletionHelper.toggle(item.representative)
+            },
+            onDelete: {
+                onDelete(item.representative)
+            },
+            swipeRightAction: swipeRightAction
+        ) {
+            TaskRow(
+                task: item.representative,
+                onToggleComplete: {
+                    TaskCompletionHelper.toggle(item.representative)
+                },
+                checkboxIsInteractive: false,
+                onRowTap: { onScheduleTap(item.representative) },
+                onDeleteUpcoming: deleteUpcomingAction,
+                onCategoryTap: {
+                    categoryPicker.present(task: item.representative)
+                },
+                trailingDateLabel: item.dateLabel,
+                leadingAccessory: .dragHandle,
+                reorderDragGesture: reorderDragGesture
+            )
+        }
+    }
+}
+
+private struct UpcomingRowCenterPreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGFloat] = [:]
+
+    static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 
@@ -224,11 +338,12 @@ struct UpcomingSection: View {
             Task(title: "Book dentist", category: .health, dateKey: DateHelpers.todayKey())
         ],
         projects: [],
-        onReschedule: { _, _ in },
-        onDelete: { _ in }
+        onScheduleTap: { _ in },
+        onDelete: { _ in },
+        onRecurringSwipeRight: { _ in }
     )
     .padding()
     .environment(CategoryPickerController())
+    .environment(TaskDeleteUndoController())
     .modelContainer(for: [Task.self, Project.self], inMemory: true)
 }
-

@@ -92,6 +92,48 @@ struct HistoryBrowseHelperTests {
         #expect(summaries[0].percent == 50)
     }
 
+    @Test func tasksInPeriod_filtersByDateKeyForMonthAndYear() {
+        let march = Task(title: "March", category: .work, dateKey: "2026-03-10")
+        let april = Task(title: "April", category: .work, dateKey: "2026-04-01")
+        let otherYear = Task(title: "Old", category: .work, dateKey: "2025-03-10")
+
+        let marchOnly = HistoryBrowseHelper.tasksInPeriod(
+            from: [march, april, otherYear],
+            period: .month,
+            viewYear: 2026,
+            viewMonth: 3
+        )
+        #expect(marchOnly.count == 1)
+        #expect(marchOnly[0].title == "March")
+
+        let year2026 = HistoryBrowseHelper.tasksInPeriod(
+            from: [march, april, otherYear],
+            period: .year,
+            viewYear: 2026,
+            viewMonth: 3
+        )
+        #expect(year2026.count == 2)
+    }
+
+    @Test func periodProjectSummaries_scopesCountsToPeriod() {
+        let marchDone = Task(title: "M1", category: .work, dateKey: "2026-03-05", isCompleted: true)
+        let marchOpen = Task(title: "M2", category: .work, dateKey: "2026-03-12")
+        let aprilDone = Task(title: "A1", category: .work, dateKey: "2026-04-01", isCompleted: true)
+
+        let marchSummaries = HistoryBrowseHelper.periodProjectSummaries(
+            from: [marchDone, marchOpen, aprilDone],
+            projects: [],
+            period: .month,
+            viewYear: 2026,
+            viewMonth: 3,
+            search: ""
+        )
+
+        #expect(marchSummaries.count == 1)
+        #expect(marchSummaries[0].doneCount == 1)
+        #expect(marchSummaries[0].totalCount == 2)
+    }
+
     private func date(year: Int, month: Int, day: Int) -> Date {
         var comps = DateComponents()
         comps.year = year

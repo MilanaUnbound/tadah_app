@@ -12,12 +12,11 @@ struct HistoryMonthYearPickerSheet: View {
     let onConfirm: (_ year: Int, _ month: Int) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @State private var step: Step = .year
     @State private var selectedYear: Int
     @State private var selectedMonth: Int
-
-    private let violet = Color(red: 0x7B / 255, green: 0x2F / 255, blue: 0xFF / 255)
 
     private static let monthSymbols: [String] = {
         let formatter = DateFormatter()
@@ -93,12 +92,12 @@ struct HistoryMonthYearPickerSheet: View {
                     HStack {
                         Text(String(year))
                             .font(.spaceGrotesk(.semibold, size: 16))
-                            .foregroundStyle(year == selectedYear ? violet : Color.primary)
+                            .foregroundStyle(year == selectedYear ? AppTheme.violet : theme.text)
                         Spacer()
                         if year == selectedYear {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(violet)
+                                .foregroundStyle(AppTheme.violet)
                         }
                     }
                 }
@@ -113,7 +112,7 @@ struct HistoryMonthYearPickerSheet: View {
             Section {
                 Text(String(selectedYear))
                     .font(.spaceGrotesk(.medium, size: 13))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(theme.textSub)
             }
 
             ForEach(1 ... 12, id: \.self) { month in
@@ -123,12 +122,12 @@ struct HistoryMonthYearPickerSheet: View {
                     HStack {
                         Text(monthName(for: month))
                             .font(.spaceGrotesk(.semibold, size: 16))
-                            .foregroundStyle(month == selectedMonth ? violet : Color.primary)
+                            .foregroundStyle(month == selectedMonth ? AppTheme.violet : theme.text)
                         Spacer()
                         if month == selectedMonth {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(violet)
+                                .foregroundStyle(AppTheme.violet)
                         }
                     }
                 }

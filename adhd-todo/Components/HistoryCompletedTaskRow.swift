@@ -5,6 +5,8 @@ struct HistoryCompletedTaskRow: View {
     let projects: [Project]
     let onTagTap: () -> Void
 
+    @Environment(\.appTheme) private var theme
+
     private var displayColor: Color {
         TaskCategoryDisplay.displayColor(for: task, projects: projects)
     }
@@ -27,7 +29,7 @@ struct HistoryCompletedTaskRow: View {
 
             Text(task.title)
                 .font(.spaceGrotesk(.medium, size: 15))
-                .foregroundStyle(Color(red: 0x66 / 255, green: 0x66 / 255, blue: 0x66 / 255))
+                .foregroundStyle(theme.textSub)
                 .strikethrough()
                 .lineLimit(2)
 
@@ -46,8 +48,8 @@ struct HistoryCompletedTaskRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
-        .background(Color.white)
+        .background(theme.card)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 1)
+        .shadow(color: theme.cardShadowColor, radius: 4, x: 0, y: 1)
     }
 }

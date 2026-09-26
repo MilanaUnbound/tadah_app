@@ -3,14 +3,24 @@ import SwiftUI
 struct PeriodNavigatorCluster: View {
     let label: String
     let width: CGFloat
+    var labelColor: Color?
+    var chevronColor: Color?
     var contentAlignment: Alignment = .trailing
     let onPrevious: () -> Void
     let onNext: () -> Void
 
-    private let labelGray = Color(red: 0xAA / 255, green: 0xAA / 255, blue: 0xAA / 255)
+    @Environment(\.appTheme) private var theme
+
+    private var resolvedLabelColor: Color {
+        labelColor ?? theme.text
+    }
+
+    private var resolvedChevronColor: Color {
+        chevronColor ?? theme.textSub
+    }
 
     private var containerWidth: CGFloat {
-        StreakBadgeLayout.navigatorContainerWidth(streakWidth: width)
+        StreakBadgeLayout.navigatorContainerWidth(width: width)
     }
 
     var body: some View {
@@ -19,7 +29,7 @@ struct PeriodNavigatorCluster: View {
 
             Text(label)
                 .font(.spaceGrotesk(.medium, size: 14))
-                .foregroundStyle(labelGray)
+                .foregroundStyle(resolvedLabelColor)
                 .lineLimit(1)
                 .frame(minWidth: StreakBadgeLayout.navigatorLabelMinWidth)
                 .multilineTextAlignment(.center)
@@ -34,7 +44,7 @@ struct PeriodNavigatorCluster: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(labelGray)
+                .foregroundStyle(resolvedChevronColor)
                 .padding(.horizontal, StreakBadgeLayout.navigatorChevronPadding)
                 .frame(maxHeight: .infinity)
         }
@@ -46,9 +56,9 @@ struct PeriodNavigatorCluster: View {
 #Preview("Compact navigator") {
     VStack(spacing: 24) {
         PeriodNavigatorCluster(label: "May", width: 96, onPrevious: {}, onNext: {})
-        PeriodNavigatorCluster(label: "Sep", width: 96, onPrevious: {}, onNext: {})
+        PeriodNavigatorCluster(label: "January", width: 96, labelColor: AppTheme.light.textMuted, chevronColor: AppTheme.light.textMuted, onPrevious: {}, onNext: {})
         PeriodNavigatorCluster(label: "2026", width: 96, onPrevious: {}, onNext: {})
-        PeriodNavigatorCluster(label: "Sep", width: 120, onPrevious: {}, onNext: {})
     }
+    .withAppTheme()
     .padding()
 }

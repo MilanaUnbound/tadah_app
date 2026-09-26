@@ -38,6 +38,7 @@ enum RecurrenceGenerator {
         anchorDate: Date,
         rule: RecurrenceRule,
         customWeekdays: Set<Int>,
+        untilDate: Date? = nil,
         seriesId: UUID = UUID(),
         horizonDays: Int = defaultHorizonDays,
         calendar: Calendar = .current
@@ -47,8 +48,13 @@ enum RecurrenceGenerator {
 
         guard rule != .none else { return .failure(.invalidRule) }
         guard horizonDays > 0 else { return .failure(.emptySchedule) }
-        guard let windowEnd = calendar.date(byAdding: .day, value: horizonDays - 1, to: anchor) else {
+        guard var windowEnd = calendar.date(byAdding: .day, value: horizonDays - 1, to: anchor) else {
             return .failure(.emptySchedule)
+        }
+
+        if let untilDate {
+            let until = calendar.startOfDay(for: untilDate)
+            windowEnd = min(windowEnd, until)
         }
 
         let occurrenceDays: [Date]
@@ -73,10 +79,18 @@ enum RecurrenceGenerator {
             )
         }
 
-        guard occurrenceDays.isEmpty == false else { return .failure(.emptySchedule) }
+        let boundedDays: [Date]
+        if let untilDate {
+            let until = calendar.startOfDay(for: untilDate)
+            boundedDays = occurrenceDays.filter { $0 <= until }
+        } else {
+            boundedDays = occurrenceDays
+        }
+
+        guard boundedDays.isEmpty == false else { return .failure(.emptySchedule) }
 
         let mask = rule == .custom ? weekdaysMask(customWeekdays) : nil
-        let tasks = occurrenceDays.map { day in
+        let tasks = boundedDays.map { day in
             let key = DateHelpers.dateKey(for: day)
             let task = Task(
                 title: title,

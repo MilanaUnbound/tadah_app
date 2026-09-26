@@ -54,3 +54,29 @@ extension View {
         padding(.top, 16).padding(.bottom, 16)
     }
 }
+
+// MARK: - App scroll
+
+struct AppScrollView<Content: View>: View {
+    var fillsAvailableHeight: Bool = false
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        ScrollView {
+            content()
+        }
+        .modifier(OptionalMaxHeightFill(enabled: fillsAvailableHeight))
+    }
+}
+
+private struct OptionalMaxHeightFill: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.frame(maxHeight: .infinity, alignment: .top)
+        } else {
+            content
+        }
+    }
+}

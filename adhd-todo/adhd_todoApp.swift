@@ -5,6 +5,7 @@ import OSLog
 @main
 struct adhd_todoApp: App {
     @StateObject private var loader = SwiftDataContainerLoader()
+    @State private var preferences = AppPreferences()
 
     var body: some Scene {
         WindowGroup {
@@ -12,23 +13,38 @@ struct adhd_todoApp: App {
                 if let container = loader.container {
                     ContentView()
                         .modelContainer(container)
+                        .environment(preferences)
+                        .preferredColorScheme(preferences.resolvedColorScheme)
+                        .withAppTheme()
+                        .task {
+                            await NotificationScheduler.sync(with: preferences)
+                        }
                 } else if let error = loader.loadError {
                     StoreLoadFailureView(
                         error: error,
                         onContinueWithoutData: { loader.continueWithoutData() }
                     )
                 } else {
-                    ZStack {
-                        Color(.systemBackground).ignoresSafeArea()
-
-                        Image("LaunchFace")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 60, height: 60)
-                    }
-                    .task { loader.load() }
+                    LoadingScreenView()
+                        .withAppTheme()
+                        .task { loader.load() }
                 }
             }
+        }
+    }
+}
+
+private struct LoadingScreenView: View {
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        ZStack {
+            theme.bg.ignoresSafeArea()
+
+            Image("LaunchFace")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 60, height: 60)
         }
     }
 }
