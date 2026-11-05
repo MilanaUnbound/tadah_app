@@ -32,6 +32,7 @@
 		2323984B2FC74CF500C9EB2D /* ADHD FigmaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ADHD FigmaTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		232398552FC74CF500C9EB2D /* ADHD FigmaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ADHD FigmaUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		233877522FCEF75A00DDE5E7 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		23DC30C9309CE40200D29A24 /* ADHD Figma.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ADHD Figma.xctestplan"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -80,6 +81,7 @@
 		232398322FC74CF400C9EB2D = {
 			isa = PBXGroup;
 			children = (
+				23DC30C9309CE40200D29A24 /* ADHD Figma.xctestplan */,
 				233877522FCEF75A00DDE5E7 /* LaunchScreen.storyboard */,
 				2323983D2FC74CF400C9EB2D /* adhd-todo */,
 				2323984E2FC74CF500C9EB2D /* ADHD FigmaTests */,
@@ -409,6 +411,8 @@
 				DEVELOPMENT_TEAM = 36N4989CU2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Tadah;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIAppFonts = "Resources/Fonts/SpaceGrotesk-Light.ttf Resources/Fonts/SpaceGrotesk-Regular.ttf Resources/Fonts/SpaceGrotesk-Medium.ttf Resources/Fonts/SpaceGrotesk-SemiBold.ttf Resources/Fonts/SpaceGrotesk-Bold.ttf";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -423,9 +427,13 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.milana.ADHD-Figma";
 				PRODUCT_NAME = Tadah;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -441,6 +449,8 @@
 				DEVELOPMENT_TEAM = 36N4989CU2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Tadah;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIAppFonts = "Resources/Fonts/SpaceGrotesk-Light.ttf Resources/Fonts/SpaceGrotesk-Regular.ttf Resources/Fonts/SpaceGrotesk-Medium.ttf Resources/Fonts/SpaceGrotesk-SemiBold.ttf Resources/Fonts/SpaceGrotesk-Bold.ttf";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -455,9 +465,13 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.milana.ADHD-Figma";
 				PRODUCT_NAME = Tadah;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
