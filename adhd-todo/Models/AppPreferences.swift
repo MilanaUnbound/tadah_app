@@ -31,6 +31,7 @@ final class AppPreferences {
         static let notificationsEnabled = "notificationsEnabled"
         static let reminderHour = "reminderHour"
         static let reminderMinute = "reminderMinute"
+        static let streakGoal = "streakGoal"
     }
 
     var appearanceMode: AppearanceMode {
@@ -49,12 +50,25 @@ final class AppPreferences {
         didSet { UserDefaults.standard.set(reminderMinute, forKey: Keys.reminderMinute) }
     }
 
+    var streakGoal: Int {
+        didSet {
+            let clamped = min(max(streakGoal, 1), 20)
+            if clamped != streakGoal {
+                streakGoal = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: Keys.streakGoal)
+        }
+    }
+
     init() {
         let defaults = UserDefaults.standard
         appearanceMode = AppearanceMode(rawValue: defaults.string(forKey: Keys.appearanceMode) ?? "") ?? .auto
         notificationsEnabled = defaults.bool(forKey: Keys.notificationsEnabled)
         reminderHour = defaults.object(forKey: Keys.reminderHour) as? Int ?? 9
         reminderMinute = defaults.object(forKey: Keys.reminderMinute) as? Int ?? 0
+        let storedGoal = defaults.object(forKey: Keys.streakGoal) as? Int ?? 3
+        streakGoal = min(max(storedGoal, 1), 20)
     }
 
     var resolvedColorScheme: ColorScheme? {

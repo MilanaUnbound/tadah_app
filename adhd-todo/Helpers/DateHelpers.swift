@@ -98,6 +98,14 @@ enum DateHelpers {
         shortMonthDayFormatter.string(from: date)
     }
 
+    /// Localized long month + day (e.g. `January 15`) for Brain Dump schedule hints.
+    static func longMonthDay(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("MMMM d")
+        return formatter.string(from: date)
+    }
+
     /// Localized month + year for calendar sheet header (e.g. `January 2026`).
     static func monthYearLabel(
         year: Int,

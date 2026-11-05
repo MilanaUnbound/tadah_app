@@ -3,7 +3,7 @@ import SwiftUI
 enum AppTab: String, CaseIterable, Identifiable {
     case today
     case history
-    case focus
+    case brain
 
     var id: String { rawValue }
 
@@ -11,7 +11,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .today: "Today"
         case .history: "Log"
-        case .focus: "Focus"
+        case .brain: "Brain"
         }
     }
 
@@ -19,7 +19,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .today: "checkmark.square"
         case .history: "calendar"
-        case .focus: "timer"
+        case .brain: "brain.head.profile"
         }
     }
 }

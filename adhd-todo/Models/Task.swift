@@ -11,6 +11,9 @@ final class Task {
     var isCompleted: Bool
     var isBonus: Bool
 
+    /// Brain Dump inbox item — hidden from Today/Log until promoted or completed.
+    var isDump: Bool = false
+
     /// Display order within a day + bonus bucket (Today reorder).
     var sortOrder: Int = 0
 
@@ -63,6 +66,7 @@ final class Task {
         dateKey: String,
         isCompleted: Bool = false,
         isBonus: Bool = false,
+        isDump: Bool = false,
         completedAt: Date? = nil,
         scheduledDate: Date? = nil,
         recurrenceRule: RecurrenceRule = .none,
@@ -77,6 +81,7 @@ final class Task {
         self.dateKey = dateKey
         self.isCompleted = isCompleted
         self.isBonus = isBonus
+        self.isDump = isDump
         self.completedAt = completedAt
         self.scheduledDate = scheduledDate
             ?? DateHelpers.startOfDay(forKey: dateKey)

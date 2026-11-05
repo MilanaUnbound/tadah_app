@@ -28,6 +28,7 @@ struct ExportBundle: Codable {
                 dateKey: t.dateKey,
                 isCompleted: t.isCompleted,
                 isBonus: t.isBonus,
+                isDump: t.isDump,
                 sortOrder: t.sortOrder,
                 completedAt: t.completedAt,
                 scheduledDate: t.scheduledDate,
@@ -69,6 +70,7 @@ struct TodoExport: Codable {
     let dateKey: String
     let isCompleted: Bool
     let isBonus: Bool
+    let isDump: Bool
     let sortOrder: Int?
     let completedAt: Date?
     let scheduledDate: Date?
@@ -86,6 +88,7 @@ struct TodoExport: Codable {
         dateKey: String,
         isCompleted: Bool,
         isBonus: Bool,
+        isDump: Bool = false,
         sortOrder: Int? = nil,
         completedAt: Date?,
         scheduledDate: Date?,
@@ -102,6 +105,7 @@ struct TodoExport: Codable {
         self.dateKey = dateKey
         self.isCompleted = isCompleted
         self.isBonus = isBonus
+        self.isDump = isDump
         self.sortOrder = sortOrder
         self.completedAt = completedAt
         self.scheduledDate = scheduledDate
@@ -121,6 +125,7 @@ struct TodoExport: Codable {
         dateKey = try container.decode(String.self, forKey: .dateKey)
         isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
         isBonus = try container.decodeIfPresent(Bool.self, forKey: .isBonus) ?? false
+        isDump = try container.decodeIfPresent(Bool.self, forKey: .isDump) ?? false
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder)
         completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
         scheduledDate = try container.decodeIfPresent(Date.self, forKey: .scheduledDate)

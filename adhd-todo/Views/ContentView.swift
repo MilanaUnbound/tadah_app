@@ -38,8 +38,8 @@ struct ContentView: View {
                             TodayView()
                         case .history:
                             HistoryView()
-                        case .focus:
-                            FocusView()
+                        case .brain:
+                            BrainDumpView()
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

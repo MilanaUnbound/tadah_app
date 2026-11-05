@@ -48,6 +48,7 @@ enum HistoryBrowseHelper {
         guard period != .project else { return [] }
 
         return tasks.filter { task in
+            guard task.isDump == false else { return false }
             guard let completedAt = resolvedCompletedAt(for: task, calendar: calendar) else {
                 return false
             }
@@ -117,7 +118,7 @@ enum HistoryBrowseHelper {
 
     static func tasks(forCategoryRaw key: String, from tasks: [Task]) -> [Task] {
         tasks
-            .filter { $0.categoryRaw == key }
+            .filter { $0.isDump == false && $0.categoryRaw == key }
             .sorted { lhs, rhs in
                 if lhs.isCompleted != rhs.isCompleted { return lhs.isCompleted == false }
                 if lhs.dateKey != rhs.dateKey { return lhs.dateKey > rhs.dateKey }
@@ -133,7 +134,8 @@ enum HistoryBrowseHelper {
     ) -> [Task] {
         guard period == .month || period == .year else { return [] }
         return tasks.filter { task in
-            taskIsInPeriod(task, period: period, viewYear: viewYear, viewMonth: viewMonth)
+            guard task.isDump == false else { return false }
+            return taskIsInPeriod(task, period: period, viewYear: viewYear, viewMonth: viewMonth)
         }
     }
 
@@ -159,11 +161,12 @@ enum HistoryBrowseHelper {
         projects: [Project],
         search: String
     ) -> [HistoryProjectSummary] {
+        let nonDump = tasks.filter { $0.isDump == false }
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let keys = uniqueCategoryKeys(from: tasks)
+        let keys = uniqueCategoryKeys(from: nonDump)
 
         return keys.compactMap { key in
-            let matching = tasks.filter { $0.categoryRaw == key }
+            let matching = nonDump.filter { $0.categoryRaw == key }
             guard let sample = matching.first else { return nil }
 
             let name = TaskCategoryDisplay.displayName(for: sample, projects: projects)

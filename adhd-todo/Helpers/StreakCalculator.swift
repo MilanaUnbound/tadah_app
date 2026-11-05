@@ -45,6 +45,7 @@ enum StreakCalculator {
         byDate.reserveCapacity(64)
 
         for task in allTasks {
+            guard task.isDump == false else { continue }
             guard task.dateKey <= todayKey else { continue }
             byDate[task.dateKey, default: []].append(task)
         }

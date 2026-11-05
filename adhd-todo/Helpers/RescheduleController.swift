@@ -42,5 +42,6 @@ final class RescheduleController {
         let start = Calendar.current.startOfDay(for: newDate)
         task.dateKey = DateHelpers.dateKey(for: start)
         task.scheduledDate = start
+        task.isDump = false
     }
 }

@@ -23,7 +23,7 @@ struct TodayView: View {
 
         _tasks = Query(
             filter: #Predicate<Task> { task in
-                task.dateKey == selectedDateKey
+                task.dateKey == selectedDateKey && task.isDump == false
             },
             sort: [
                 SortDescriptor(\Task.sortOrder),

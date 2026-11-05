@@ -107,7 +107,7 @@ struct HistoryView: View {
     private var upcomingTasks: [Task] {
         let todayKey = DateHelpers.todayKey()
         return allTasks
-            .filter { $0.dateKey > todayKey }
+            .filter { $0.isDump == false && $0.dateKey > todayKey }
             .sorted { lhs, rhs in
                 lhs.resolvedScheduledDate < rhs.resolvedScheduledDate
             }

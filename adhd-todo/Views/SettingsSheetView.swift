@@ -92,6 +92,42 @@ struct SettingsSheetView: View {
                             }
                         ))
                     }
+
+                    SettingRow(
+                        icon: Text("🎉")
+                            .font(.system(size: 17)),
+                        label: "Daily task goal",
+                        hint: "Minimum tasks to feel done"
+                    ) {
+                        HStack(spacing: 10) {
+                            Button {
+                                preferences.streakGoal = max(1, preferences.streakGoal - 1)
+                            } label: {
+                                Text("−")
+                                    .font(.spaceGrotesk(.medium, size: 16))
+                                    .foregroundStyle(theme.text)
+                                    .frame(width: 28, height: 28)
+                                    .background(theme.btnBg, in: Circle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Text("\(preferences.streakGoal)")
+                                .font(.spaceGrotesk(.semibold, size: 15))
+                                .foregroundStyle(theme.text)
+                                .frame(minWidth: 16)
+
+                            Button {
+                                preferences.streakGoal = min(20, preferences.streakGoal + 1)
+                            } label: {
+                                Text("+")
+                                    .font(.spaceGrotesk(.medium, size: 16))
+                                    .foregroundStyle(theme.text)
+                                    .frame(width: 28, height: 28)
+                                    .background(theme.btnBg, in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 40)

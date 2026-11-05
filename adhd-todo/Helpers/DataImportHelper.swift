@@ -77,6 +77,7 @@ enum DataImportHelper {
                 dateKey: todo.dateKey,
                 isCompleted: todo.isCompleted,
                 isBonus: todo.isBonus,
+                isDump: todo.isDump,
                 completedAt: todo.completedAt,
                 scheduledDate: todo.scheduledDate,
                 recurrenceRule: recurrenceRule,
