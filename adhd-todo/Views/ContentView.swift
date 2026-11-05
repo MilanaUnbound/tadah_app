@@ -4,6 +4,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(AppPreferences.self) private var preferences
     @Environment(\.appTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .today
     @State private var taskDeleteUndo = TaskDeleteUndoController()
     @State private var categoryPicker = CategoryPickerController()
@@ -115,8 +116,23 @@ struct ContentView: View {
             } else if lastKey != todayKey {
                 LastOpenedStore.setLastOpenedKey(todayKey)
             }
+
+            runAutoBackup(force: false)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                runAutoBackup(force: true)
+            }
         }
         .withAppTheme()
+    }
+
+    private func runAutoBackup(force: Bool) {
+        LocalAutoBackupHelper.backupIfNeeded(
+            tasks: allTasks,
+            projects: projects,
+            force: force
+        )
     }
 }
 

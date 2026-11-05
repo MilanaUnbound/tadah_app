@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import OSLog
+import UIKit
 
 @main
 struct adhd_todoApp: App {
@@ -121,6 +122,11 @@ private struct StoreLoadFailureView: View {
     let onContinueWithoutData: () -> Void
 
     @State private var showingDetails = false
+    @State private var shareBackupURL: URL?
+
+    private var latestBackupURL: URL? {
+        LocalAutoBackupHelper.latestBackupURL
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -151,6 +157,16 @@ private struct StoreLoadFailureView: View {
             }
 
             VStack(spacing: 10) {
+                if let latestBackupURL {
+                    Button {
+                        shareBackupURL = latestBackupURL
+                    } label: {
+                        Text("Share last automatic backup")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
                 Button {
                     showingDetails.toggle()
                 } label: {
@@ -204,6 +220,17 @@ private struct StoreLoadFailureView: View {
         .padding(.vertical, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .sheet(item: shareBackupBinding) { item in
+            RecoveryShareSheet(activityItems: [item.url])
+                .ignoresSafeArea()
+        }
+    }
+
+    private var shareBackupBinding: Binding<ShareableBackup?> {
+        Binding(
+            get: { shareBackupURL.map(ShareableBackup.init(url:)) },
+            set: { shareBackupURL = $0?.url }
+        )
     }
 
     private var errorText: String {
@@ -215,4 +242,19 @@ private struct StoreLoadFailureView: View {
         UIPasteboard.general.string = text
         #endif
     }
+}
+
+private struct ShareableBackup: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private struct RecoveryShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

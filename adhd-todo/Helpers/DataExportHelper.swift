@@ -162,14 +162,16 @@ struct CategoryRef: Codable {
 }
 
 enum DataExportHelper {
-    static func exportData(tasks: [Task], projects: [Project]) throws -> URL {
+    static func encodeBackupData(tasks: [Task], projects: [Project]) throws -> Data {
         let bundle = ExportBundle.make(tasks: tasks, projects: projects)
-
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(bundle)
+    }
 
-        let data = try encoder.encode(bundle)
+    static func exportData(tasks: [Task], projects: [Project]) throws -> URL {
+        let data = try encodeBackupData(tasks: tasks, projects: projects)
 
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)

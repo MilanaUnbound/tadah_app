@@ -38,6 +38,16 @@ struct SettingsSheetView: View {
                     sectionHeader("Data", topPadding: 14)
 
                     SettingRow(
+                        icon: Image(systemName: "internaldrive")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(theme.textSub),
+                        label: "Automatic backup",
+                        hint: LocalAutoBackupHelper.formattedLastBackupHint()
+                    ) {
+                        EmptyView()
+                    }
+
+                    SettingRow(
                         icon: Image(systemName: "arrow.down.circle")
                             .font(.system(size: 17, weight: .regular))
                             .foregroundStyle(AppTheme.exportBlue),
@@ -277,6 +287,8 @@ struct SettingsSheetView: View {
         pendingImportURL = nil
 
         do {
+            // Snapshot current data before replace so a bad import is recoverable.
+            LocalAutoBackupHelper.backupIfNeeded(tasks: tasks, projects: projects, force: true)
             let bundle = try DataImportHelper.decode(from: url)
             try DataImportHelper.replaceAll(bundle: bundle, in: modelContext)
             closeSettings()
@@ -287,6 +299,7 @@ struct SettingsSheetView: View {
 
     private func performDeleteAll() {
         do {
+            LocalAutoBackupHelper.backupIfNeeded(tasks: tasks, projects: projects, force: true)
             try DataDeleteHelper.deleteAll(in: modelContext)
             taskDeleteUndo.dismiss()
             closeSettings()
