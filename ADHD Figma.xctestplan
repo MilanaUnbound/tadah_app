@@ -1,0 +1,38 @@
+{
+  "configurations" : [
+    {
+      "id" : "0BD672EE-E11E-4B8C-AD94-708028B40AB7",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:ADHD Figma.xcodeproj",
+      "identifier" : "2323983A2FC74CF400C9EB2D",
+      "name" : "ADHD Figma"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:ADHD Figma.xcodeproj",
+        "identifier" : "2323984A2FC74CF500C9EB2D",
+        "name" : "ADHD FigmaTests"
+      }
+    },
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:ADHD Figma.xcodeproj",
+        "identifier" : "232398542FC74CF500C9EB2D",
+        "name" : "ADHD FigmaUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
